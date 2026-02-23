@@ -20,6 +20,10 @@ const validators: Record<ModuleId, ReturnType<typeof ajv.compile>> = {
   MODULE_001_EVENT_REQUEST: ajv.compile(eventSchema as any),
 };
 
+/* -------------------------------------------------------------------------- */
+/*                                UTILITIES                                   */
+/* -------------------------------------------------------------------------- */
+
 function json(statusCode: number, body: unknown) {
   return {
     statusCode,
@@ -55,6 +59,7 @@ function normalizeDate(value: unknown) {
 /* -------------------------------------------------------------------------- */
 
 async function logSubmission(_payload: unknown) {
+  // Future: Supabase / database logging
   return true;
 }
 
@@ -79,53 +84,91 @@ async function sendEmails(payload: { requestId: string; data: EventData }) {
     .filter(Boolean)
     .join(', ');
 
-  /* ---------------- INTERNAL EMAIL ---------------- */
-
-  const internalSubject = `Event Request: ${safe(
+  const subject = `Event Request: ${safe(
     data.eventTitle
   )} — ${safe(data.city)}, ${safe(data.state)}`;
 
+  /* ================= INTERNAL NOTIFICATION ================= */
+
   const internalHtml = `
     <h2>New Event Request Submitted</h2>
-    <p><strong>Request ID:</strong> ${requestId}</p>
+    <p><strong>Reference ID:</strong> ${requestId}</p>
 
-    <h3>Contact</h3>
+    <h3>Contact Information</h3>
     <p>
       <strong>Name:</strong> ${safe(data.contactName)}<br/>
       <strong>Email:</strong> ${safe(data.contactEmail)}<br/>
-      <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}
+      <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}<br/>
+      <strong>Preferred Contact:</strong> ${safe(data.preferredContactMethod)}
     </p>
 
-    <h3>Event</h3>
+    <h3>Event Details</h3>
     <p>
       <strong>Title:</strong> ${safe(data.eventTitle)}<br/>
-      <strong>Start:</strong> ${safe(data.startDateTime)}<br/>
-      <strong>Location:</strong> ${address}
+      <strong>Type:</strong> ${safe(data.eventType)}${
+        data.eventType === 'Other'
+          ? ` (${safe(data.eventTypeOther)})`
+          : ''
+      }<br/>
+      <strong>Description:</strong> ${safe(data.eventDescription) || 'N/A'}<br/>
+      <strong>Estimated Attendance:</strong> ${safe(
+        data.expectedAttendance
+      )}<br/>
+      <strong>Requested Role:</strong> ${safe(
+        data.requestedRole
+      )}<br/>
+      <strong>Media Expected:</strong> ${safe(data.mediaExpected)}
     </p>
+
+    <h3>Date & Time</h3>
+    <p>
+      <strong>Start:</strong> ${safe(data.startDateTime)}<br/>
+      <strong>End:</strong> ${safe(data.endDateTime) || 'N/A'}<br/>
+      <strong>Flexible:</strong> ${
+        data.isTimeFlexible ? 'Yes' : 'No'
+      }
+    </p>
+
+    <h3>Location</h3>
+    <p>
+      <strong>Venue:</strong> ${safe(data.venueName) || 'N/A'}<br/>
+      <strong>Address:</strong> ${address}
+    </p>
+
+    <p><strong>Consent Confirmed:</strong> ${
+      data.permissionToContact ? 'Yes' : 'No'
+    }</p>
   `;
 
-  const internalResponse = await resend.emails.send({
-    from,
-    to,
-    subject: internalSubject,
-    html: internalHtml,
-    reply_to: safe(data.contactEmail) || undefined,
-  });
+  try {
+    const internalResponse = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html: internalHtml,
+      reply_to: safe(data.contactEmail) || undefined,
+    });
 
-  if (internalResponse.error) {
-    console.error('[email] Internal error:', internalResponse.error);
+    if (internalResponse.error) {
+      console.error('[email] Internal send error:', internalResponse.error);
+    }
+  } catch (err) {
+    console.error('[email] Internal send crash:', err);
   }
 
-  /* ---------------- CONFIRMATION EMAIL ---------------- */
+  /* ================= CONFIRMATION TO SUBMITTER ================= */
 
   if (data.contactEmail) {
-    const confirmationSubject = 'We received your event request';
+    const confirmationSubject =
+      'Your event request has been received';
 
     const confirmationHtml = `
-      <h2>Thank you for your event request</h2>
+      <h2>Thank You for Your Submission</h2>
       <p>Hi ${safe(data.contactName)},</p>
 
-      <p>We received your request for:</p>
+      <p>
+        We have received your event request for:
+      </p>
 
       <p>
         <strong>${safe(data.eventTitle)}</strong><br/>
@@ -133,23 +176,37 @@ async function sendEmails(payload: { requestId: string; data: EventData }) {
         ${address}
       </p>
 
-      <p>Our team will review the request and follow up shortly.</p>
+      <p>
+        Our team will review the request and follow up with you
+        as soon as possible.
+      </p>
 
-      <p>— Kelly Grappe Campaign Team</p>
+      <p>
+        Reference ID: <strong>${requestId}</strong>
+      </p>
+
+      <p>
+        Office of the Secretary of State<br/>
+        Kelly Grappe Campaign
+      </p>
     `;
 
-    const confirmationResponse = await resend.emails.send({
-      from,
-      to: safe(data.contactEmail),
-      subject: confirmationSubject,
-      html: confirmationHtml,
-    });
+    try {
+      const confirmationResponse = await resend.emails.send({
+        from,
+        to: safe(data.contactEmail),
+        subject: confirmationSubject,
+        html: confirmationHtml,
+      });
 
-    if (confirmationResponse.error) {
-      console.error(
-        '[email] Confirmation error:',
-        confirmationResponse.error
-      );
+      if (confirmationResponse.error) {
+        console.error(
+          '[email] Confirmation error:',
+          confirmationResponse.error
+        );
+      }
+    } catch (err) {
+      console.error('[email] Confirmation crash:', err);
     }
   }
 
@@ -157,6 +214,7 @@ async function sendEmails(payload: { requestId: string; data: EventData }) {
 }
 
 async function createCalendarEvent(_payload: unknown) {
+  // Future calendar integration
   return true;
 }
 
@@ -222,7 +280,6 @@ export const handler: Handler = async (event) => {
   };
 
   let emailResult: any = null;
-  let calendarResult: any = null;
 
   try {
     await logSubmission(payload);
@@ -236,18 +293,11 @@ export const handler: Handler = async (event) => {
     console.error('[sendEmails] error:', err);
   }
 
-  try {
-    calendarResult = await createCalendarEvent(payload);
-  } catch (err) {
-    console.error('[calendar] error:', err);
-  }
-
   return json(200, {
     ok: true,
     requestId,
     actions: {
       email: emailResult,
-      calendar: calendarResult,
     },
   });
 };
