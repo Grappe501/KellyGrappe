@@ -7,7 +7,6 @@ import { Resend } from 'resend';
 import eventSchema from './eventRequests.schema.json';
 
 type ModuleId = 'MODULE_001_EVENT_REQUEST';
-
 type EventData = Record<string, any>;
 
 const ajv = new Ajv({
@@ -37,11 +36,25 @@ function isSpam(honeypot?: string) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                               HELPERS                                      */
+/* -------------------------------------------------------------------------- */
+
+function normalizeDate(value: unknown) {
+  if (!value) return value;
+  try {
+    const d = new Date(value as string);
+    if (isNaN(d.getTime())) return value;
+    return d.toISOString();
+  } catch {
+    return value;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /*                                ACTIONS                                     */
 /* -------------------------------------------------------------------------- */
 
 async function logSubmission(_payload: unknown) {
-  // Future: Supabase / Google Sheets
   return true;
 }
 
@@ -84,9 +97,7 @@ async function sendEmail(payload: {
       <strong>Name:</strong> ${safe(data.contactName)}<br/>
       <strong>Email:</strong> ${safe(data.contactEmail)}<br/>
       <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}<br/>
-      <strong>Preferred Contact:</strong> ${safe(
-        data.preferredContactMethod
-      )}
+      <strong>Preferred Contact:</strong> ${safe(data.preferredContactMethod)}
     </p>
 
     <h3>Event</h3>
@@ -113,9 +124,7 @@ async function sendEmail(payload: {
     <p>
       <strong>Start:</strong> ${safe(data.startDateTime)}<br/>
       <strong>End:</strong> ${safe(data.endDateTime) || 'N/A'}<br/>
-      <strong>Flexible:</strong> ${
-        data.isTimeFlexible ? 'Yes' : 'No'
-      }
+      <strong>Flexible:</strong> ${data.isTimeFlexible ? 'Yes' : 'No'}
     </p>
 
     <h3>Location</h3>
@@ -143,7 +152,6 @@ async function sendEmail(payload: {
 }
 
 async function createCalendarEvent(_payload: unknown) {
-  // Phase 2 integration
   return true;
 }
 
@@ -173,8 +181,13 @@ export const handler: Handler = async (event) => {
   }
 
   if (isSpam(honeypot)) {
-    // Silently accept spam
     return json(200, { ok: true, requestId: randomUUID() });
+  }
+
+  // 🔥 Auto-normalize date fields before validation
+  data.startDateTime = normalizeDate(data.startDateTime);
+  if (data.endDateTime) {
+    data.endDateTime = normalizeDate(data.endDateTime);
   }
 
   const validate = validators[moduleId];
