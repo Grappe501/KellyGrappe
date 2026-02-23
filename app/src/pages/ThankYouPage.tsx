@@ -10,19 +10,18 @@ export default function ThankYouPage() {
     <Container>
       <Card>
         <CardHeader
-          title="Thank You!"
-          subtitle="Your event request has been received."
+          title="Submission received"
+          subtitle="Thank you. Our team has been notified and will follow up if we need anything else."
         />
         <CardContent>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            Our team will review the details and reach out if we need additional information.
-            We appreciate you helping us show up for Arkansas communities.
+          <p className="text-sm text-slate-700 leading-relaxed">
+            If you submitted an event request or volunteer signup, a confirmation email may take a few minutes to arrive.
           </p>
 
-          <div className="mt-6 space-y-3">
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Button onClick={() => nav('/')}>Back to Home</Button>
-            <Button variant="secondary" onClick={() => nav('/event-request')}>
-              Submit Another Event Request
+            <Button variant="secondary" onClick={() => nav('/team-signup')}>
+              Submit Another Volunteer Signup
             </Button>
           </div>
         </CardContent>

@@ -1,45 +1,32 @@
-/* 
-  THEME RESET — FLATTENED LAYOUT
-  --------------------------------
-  React components control layout.
-  No centered frames.
-  No max-width constraints.
-  No outer padding.
+/*
+  Theme baseline
+  --------------
+  Tailwind controls the UI.
+  This file exists only to set safe global defaults and prevent legacy
+  max-width / padding frames from reappearing.
 */
 
 :root {
-    --surface: #f8fafc;
-    --surface-inner: #ffffff;
-    --border: #e5e7eb;
-    --text-primary: #0f172a;
-    --text-muted: #64748b;
-    --accent: #2563eb;
-    --accent-hover: #1d4ed8;
-    --radius: 16px;
-  }
-  
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-  }
-  
-  body {
-    background: #f8fafc; /* slate-50 */
-    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    color: #0f172a;
-  }
-  
-  /* Ensure root spans full width */
-  #root {
-    width: 100%;
-    min-height: 100vh;
-  }
-  
-  /* Remove legacy frame classes entirely */
-  .app-container,
-  .header-modern,
-  .card-modern,
-  .footer-modern {
-    all: unset;
-  }
+  --radius: 16px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}

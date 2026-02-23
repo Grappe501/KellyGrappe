@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prefer light UI for civic-tech readability */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }

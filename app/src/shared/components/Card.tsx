@@ -1,58 +1,42 @@
 import React from 'react';
 
-type CardProps = {
+export function Card({
+  children,
+  className,
+}: {
   children: React.ReactNode;
   className?: string;
-};
-
-type CardHeaderProps = {
-  title: string;
-  subtitle?: string;
-  className?: string;
-};
-
-type CardContentProps = {
-  children: React.ReactNode;
-  className?: string;
-};
-
-export function Card({ children, className }: CardProps) {
+}) {
   return (
     <div
       className={[
-        // Enterprise, calm surface
-        'rounded-2xl bg-white',
-        // IMPORTANT: lock readable foreground on light surfaces (prevents dark-shell inheritance issues)
-        'text-slate-900',
-        // Crisp border + subtle elevation (SaaS)
-        'border border-slate-200 shadow-sm',
-        // Prevent visual glitches with inner rounded children
-        'overflow-hidden',
-        className ?? '',
-      ].join(' ')}
+        'rounded-2xl bg-white shadow-sm ring-1 ring-slate-200',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       {children}
     </div>
   );
 }
 
-export function CardHeader({ title, subtitle, className }: CardHeaderProps) {
+export function CardHeader({
+  title,
+  subtitle,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  className?: string;
+}) {
   return (
-    <div
-      className={[
-        'px-5 sm:px-6',
-        'pt-5 sm:pt-6',
-        'pb-4',
-        // Soft separation without feeling “boxed”
-        'border-b border-slate-100',
-        className ?? '',
-      ].join(' ')}
-    >
+    <div className={['px-5 pt-5 pb-3', className].filter(Boolean).join(' ')}>
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
         {title}
       </h1>
       {subtitle ? (
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 leading-relaxed">
           {subtitle}
         </p>
       ) : null}
@@ -60,15 +44,15 @@ export function CardHeader({ title, subtitle, className }: CardHeaderProps) {
   );
 }
 
-export function CardContent({ children, className }: CardContentProps) {
+export function CardContent({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div
-      className={[
-        'px-5 sm:px-6',
-        'py-5 sm:py-6',
-        className ?? '',
-      ].join(' ')}
-    >
+    <div className={['px-5 pb-5', className].filter(Boolean).join(' ')}>
       {children}
     </div>
   );

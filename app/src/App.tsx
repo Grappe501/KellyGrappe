@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import EventRequestPage from './modules/eventRequests/EventRequestPage';
+import TeamSignupPage from './modules/teamSignup/TeamSignupPage';
 import ThankYouPage from './pages/ThankYouPage';
 
 export default function App() {
@@ -8,6 +9,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/event-request" element={<EventRequestPage />} />
+      <Route path="/team-signup" element={<TeamSignupPage />} />
       <Route path="/thank-you" element={<ThankYouPage />} />
     </Routes>
   );

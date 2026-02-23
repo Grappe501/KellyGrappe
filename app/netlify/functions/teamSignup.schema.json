@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MODULE_002_TEAM_SIGNUP",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "email",
+    "name",
+    "location",
+    "hoursPerWeek",
+    "creativeDigitalTeam",
+    "communicationsPRTeam",
+    "constituentServicesTeam",
+    "democracyRightsTeam",
+    "fieldEventsTeam",
+    "financeFundraisingTeam",
+    "operationsTeam",
+    "outreachOrganizingTeam",
+    "socialMediaStorytellingTeam",
+    "stayInTouch",
+    "permissionToContact"
+  ],
+  "properties": {
+    "email": { "type": "string", "format": "email", "minLength": 3 },
+    "phone": { "type": "string", "minLength": 0 },
+    "name": { "type": "string", "minLength": 1 },
+    "location": { "type": "string", "minLength": 1 },
+
+    "hoursPerWeek": {
+      "type": "string",
+      "enum": ["1-2 hours", "3-4 hours", "6-8 hours", "More than 8 hours", "Other"]
+    },
+    "hoursPerWeekOther": { "type": "string" },
+
+    "creativeDigitalTeam": { "type": "array", "items": { "type": "string" } },
+    "communicationsPRTeam": { "type": "array", "items": { "type": "string" } },
+    "constituentServicesTeam": { "type": "array", "items": { "type": "string" } },
+    "democracyRightsTeam": { "type": "array", "items": { "type": "string" } },
+    "fieldEventsTeam": { "type": "array", "items": { "type": "string" } },
+    "financeFundraisingTeam": { "type": "array", "items": { "type": "string" } },
+    "operationsTeam": { "type": "array", "items": { "type": "string" } },
+    "outreachOrganizingTeam": { "type": "array", "items": { "type": "string" } },
+    "socialMediaStorytellingTeam": { "type": "array", "items": { "type": "string" } },
+
+    "stayInTouch": { "type": "boolean" },
+    "otherContribution": { "type": "string" },
+    "eventInviteDetails": { "type": "string" },
+
+    "permissionToContact": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "hoursPerWeek": { "const": "Other" } },
+        "required": ["hoursPerWeek"]
+      },
+      "then": {
+        "required": ["hoursPerWeekOther"],
+        "properties": { "hoursPerWeekOther": { "type": "string", "minLength": 1 } }
+      }
+    },
+    {
+      "anyOf": [
+        { "properties": { "stayInTouch": { "const": true } }, "required": ["stayInTouch"] },
+        { "properties": { "otherContribution": { "type": "string", "minLength": 1 } }, "required": ["otherContribution"] },
+        { "properties": { "creativeDigitalTeam": { "type": "array", "minItems": 1 } }, "required": ["creativeDigitalTeam"] },
+        { "properties": { "communicationsPRTeam": { "type": "array", "minItems": 1 } }, "required": ["communicationsPRTeam"] },
+        { "properties": { "constituentServicesTeam": { "type": "array", "minItems": 1 } }, "required": ["constituentServicesTeam"] },
+        { "properties": { "democracyRightsTeam": { "type": "array", "minItems": 1 } }, "required": ["democracyRightsTeam"] },
+        { "properties": { "fieldEventsTeam": { "type": "array", "minItems": 1 } }, "required": ["fieldEventsTeam"] },
+        { "properties": { "financeFundraisingTeam": { "type": "array", "minItems": 1 } }, "required": ["financeFundraisingTeam"] },
+        { "properties": { "operationsTeam": { "type": "array", "minItems": 1 } }, "required": ["operationsTeam"] },
+        { "properties": { "outreachOrganizingTeam": { "type": "array", "minItems": 1 } }, "required": ["outreachOrganizingTeam"] },
+        { "properties": { "socialMediaStorytellingTeam": { "type": "array", "minItems": 1 } }, "required": ["socialMediaStorytellingTeam"] }
+      ]
+    }
+  ]
+}
