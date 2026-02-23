@@ -1,0 +1,96 @@
+:root {
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-muted: #64748b;
+    --color-accent: #1d4ed8;
+    --color-accent-hover: #1e40af;
+    --color-success: #166534;
+    --radius-md: 12px;
+  }
+  
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  
+  .app-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 2rem;
+  }
+  
+  .label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+  
+  .input,
+  .select,
+  .textarea {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.95rem;
+    transition: border 0.2s, box-shadow 0.2s;
+  }
+  
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+  }
+  
+  .button-primary {
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  
+  .button-primary:hover {
+    background: var(--color-accent-hover);
+  }
+  
+  .button-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .header {
+    margin-bottom: 2rem;
+  }
+  
+  .header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .header p {
+    color: var(--color-muted);
+    margin-top: 0.5rem;
+  }
+  
+  .footer {
+    margin-top: 3rem;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    text-align: center;
+  }
