@@ -2,9 +2,9 @@ import type { Handler } from '@netlify/functions';
 import { randomUUID } from 'crypto';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 
-import eventSchema from '../../../src/modules/eventRequests/eventRequests.schema.json';
+import eventSchema from './eventRequests.schema.json';
 
 type ModuleId = 'MODULE_001_EVENT_REQUEST';
 
@@ -14,6 +14,8 @@ addFormats(ajv);
 const validators: Record<ModuleId, ReturnType<typeof ajv.compile>> = {
   MODULE_001_EVENT_REQUEST: ajv.compile(eventSchema as any),
 };
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function json(statusCode: number, body: any) {
   return {
@@ -40,16 +42,13 @@ async function logSubmission(_payload: any) {
 }
 
 async function sendEmail(payload: any) {
-  const apiKey = process.env.SENDGRID_API_KEY;
   const to = process.env.EMAIL_TO;
   const from = process.env.EMAIL_FROM;
 
-  if (!apiKey || !to || !from) {
-    console.warn('SendGrid environment variables not configured.');
+  if (!process.env.RESEND_API_KEY || !to || !from) {
+    console.warn('Resend environment variables not configured.');
     return;
   }
-
-  sgMail.setApiKey(apiKey);
 
   const { requestId, data } = payload;
 
@@ -62,37 +61,6 @@ async function sendEmail(payload: any) {
     .join(', ');
 
   const subject = `Event Request: ${data.eventTitle} — ${data.city}, ${data.state}`;
-
-  const textBody = `
-New Event Request Submitted
-
-Request ID: ${requestId}
-
-CONTACT
-Name: ${data.contactName}
-Email: ${data.contactEmail}
-Phone: ${data.contactPhone || 'N/A'}
-Preferred Contact: ${data.preferredContactMethod}
-
-EVENT
-Title: ${data.eventTitle}
-Type: ${data.eventType}${data.eventType === 'Other' ? ` (${data.eventTypeOther})` : ''}
-Description: ${data.eventDescription || 'N/A'}
-Estimated Attendance: ${data.expectedAttendance}
-Requested Role: ${data.requestedRole}
-Media Expected: ${data.mediaExpected}
-
-DATE & TIME
-Start: ${data.startDateTime}
-End: ${data.endDateTime || 'N/A'}
-Flexible: ${data.isTimeFlexible ? 'Yes' : 'No'}
-
-LOCATION
-Venue: ${data.venueName || 'N/A'}
-Address: ${address}
-
-Consent Confirmed: ${data.permissionToContact ? 'Yes' : 'No'}
-`;
 
   const htmlBody = `
     <h2>New Event Request Submitted</h2>
@@ -132,11 +100,10 @@ Consent Confirmed: ${data.permissionToContact ? 'Yes' : 'No'}
     <p><strong>Consent Confirmed:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
   `;
 
-  await sgMail.send({
-    to,
+  await resend.emails.send({
     from,
+    to,
     subject,
-    text: textBody,
     html: htmlBody,
   });
 }
