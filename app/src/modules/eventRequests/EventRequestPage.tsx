@@ -1,8 +1,16 @@
-import { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Container from '../../shared/components/Container';
 import { Card, CardHeader, CardContent } from '../../shared/components/Card';
-import { Button, ErrorText, HelpText, Input, Label, Select, Textarea } from '../../shared/components/FormControls';
+import {
+  Button,
+  ErrorText,
+  HelpText,
+  Input,
+  Label,
+  Select,
+  Textarea,
+} from '../../shared/components/FormControls';
 import { submitModule } from '../../shared/utils/apiClient';
 
 type FormState = {
@@ -10,6 +18,7 @@ type FormState = {
   contactEmail: string;
   contactPhone: string;
   preferredContactMethod: 'Email' | 'Phone' | 'Text';
+
   eventTitle: string;
   eventType:
     | 'Candidate Forum / Debate'
@@ -24,17 +33,21 @@ type FormState = {
     | 'Small Business Visit'
     | 'Other';
   eventTypeOther: string;
+
   eventDescription: string;
   expectedAttendance: '1–10' | '11–25' | '26–50' | '51–100' | '100+';
-  startDateTime: string;
-  endDateTime: string;
+
+  startDateTime: string; // datetime-local
+  endDateTime: string; // datetime-local
   isTimeFlexible: boolean;
+
   venueName: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
   state: string;
   zip: string;
+
   requestedRole:
     | 'Attend and greet attendees'
     | 'Speak briefly'
@@ -43,11 +56,16 @@ type FormState = {
     | 'Fundraiser ask'
     | 'Not sure';
   mediaExpected: 'No' | 'Yes' | 'Not sure';
+
   permissionToContact: boolean;
 
   // anti-spam
   honeypot: string;
 };
+
+type StepId = 'CONTACT' | 'EVENT' | 'SCHEDULE' | 'FINAL' | 'REVIEW';
+
+const DRAFT_KEY = 'KG_SOS_EVENT_REQUEST_DRAFT_v1';
 
 const EVENT_TYPES: FormState['eventType'][] = [
   'Candidate Forum / Debate',
@@ -63,70 +81,274 @@ const EVENT_TYPES: FormState['eventType'][] = [
   'Other',
 ];
 
+const STEP_ORDER: StepId[] = ['CONTACT', 'EVENT', 'SCHEDULE', 'FINAL', 'REVIEW'];
+
+function safeTrim(v: unknown) {
+  return (v ?? '').toString().trim();
+}
+
+function isEmailLike(v: string) {
+  // Simple, user-friendly check (backend still validates schema)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+function titleCaseStep(step: StepId) {
+  switch (step) {
+    case 'CONTACT':
+      return 'Contact';
+    case 'EVENT':
+      return 'Event';
+    case 'SCHEDULE':
+      return 'When & Where';
+    case 'FINAL':
+      return 'Final Details';
+    case 'REVIEW':
+      return 'Review';
+  }
+}
+
+function statusBadge(status: IntakeStatus) {
+  switch (status) {
+    case 'DRAFT':
+      return { label: 'Draft saved', cls: 'bg-slate-100 text-slate-700 border-slate-200' };
+    case 'IN_PROGRESS':
+      return { label: 'In progress', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+    case 'READY':
+      return { label: 'Ready to submit', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    case 'SUBMITTING':
+      return { label: 'Submitting…', cls: 'bg-amber-50 text-amber-800 border-amber-200' };
+    case 'SUBMITTED':
+      return { label: 'Submitted', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    case 'ERROR':
+      return { label: 'Needs attention', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+  }
+}
+
+type IntakeStatus = 'DRAFT' | 'IN_PROGRESS' | 'READY' | 'SUBMITTING' | 'SUBMITTED' | 'ERROR';
+
 export default function EventRequestPage() {
   const nav = useNavigate();
+
+  const [step, setStep] = useState<StepId>('CONTACT');
   const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<IntakeStatus>('IN_PROGRESS');
+  const [requestId, setRequestId] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const didHydrateDraft = useRef(false);
 
   const [form, setForm] = useState<FormState>(() => ({
     contactName: '',
     contactEmail: '',
     contactPhone: '',
     preferredContactMethod: 'Email',
+
     eventTitle: '',
     eventType: 'Community Town Hall',
     eventTypeOther: '',
     eventDescription: '',
     expectedAttendance: '11–25',
+
     startDateTime: '',
     endDateTime: '',
     isTimeFlexible: false,
+
     venueName: '',
     addressLine1: '',
     addressLine2: '',
     city: '',
     state: 'AR',
     zip: '',
+
     requestedRole: 'Attend and greet attendees',
     mediaExpected: 'Not sure',
+
     permissionToContact: false,
-    honeypot: ''
+
+    honeypot: '',
   }));
 
   const showOtherType = form.eventType === 'Other';
 
-  const canSubmit = useMemo(() => {
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setStatus((s) => (s === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS'));
+    // Clear field error on change
+    setFieldErrors((prev) => {
+      if (!prev[key as string]) return prev;
+      const copy = { ...prev };
+      delete copy[key as string];
+      return copy;
+    });
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                                  DRAFTS                                    */
+  /* -------------------------------------------------------------------------- */
+
+  useEffect(() => {
+    // Draft hydrate (once)
+    if (didHydrateDraft.current) return;
+    didHydrateDraft.current = true;
+
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (parsed?.data && typeof parsed.data === 'object') {
+        setForm((prev) => ({ ...prev, ...parsed.data }));
+        setStatus('DRAFT');
+      }
+      if (parsed?.step && STEP_ORDER.includes(parsed.step)) setStep(parsed.step);
+    } catch {
+      // ignore draft load errors
+    }
+  }, []);
+
+  useEffect(() => {
+    // Draft autosave
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          step,
+          updatedAt: new Date().toISOString(),
+          data: form,
+        })
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }, [form, step]);
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+    setStatus('IN_PROGRESS');
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                               VALIDATION                                   */
+  /* -------------------------------------------------------------------------- */
+
+  const requiredForSubmit = useMemo(() => {
+    // Submit-level requirements (enterprise gate)
     if (!form.permissionToContact) return false;
-    if (!form.contactName.trim()) return false;
-    if (!form.contactEmail.trim()) return false;
-    if (!form.eventTitle.trim()) return false;
-    if (!form.startDateTime.trim()) return false;
-    if (!form.addressLine1.trim()) return false;
-    if (!form.city.trim()) return false;
-    if (!form.state.trim()) return false;
-    if (!form.zip.trim()) return false;
-    if (showOtherType && !form.eventTypeOther.trim()) return false;
+    if (!safeTrim(form.contactName)) return false;
+    if (!safeTrim(form.contactEmail)) return false;
+    if (!isEmailLike(form.contactEmail)) return false;
+    if (!safeTrim(form.eventTitle)) return false;
+    if (!safeTrim(form.startDateTime)) return false;
+    if (!safeTrim(form.addressLine1)) return false;
+    if (!safeTrim(form.city)) return false;
+    if (!safeTrim(form.state)) return false;
+    if (!safeTrim(form.zip)) return false;
+    if (showOtherType && !safeTrim(form.eventTypeOther)) return false;
     return true;
   }, [form, showOtherType]);
 
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    if (submitting) return;
+    if (requestId) return;
+    setStatus(requiredForSubmit ? 'READY' : status === 'DRAFT' ? 'DRAFT' : 'IN_PROGRESS');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requiredForSubmit]);
+
+  function validateStep(current: StepId) {
+    const errs: Record<string, string> = {};
+
+    const require = (key: keyof FormState, message: string) => {
+      if (!safeTrim(form[key])) errs[key as string] = message;
+    };
+
+    if (current === 'CONTACT') {
+      require('contactName', 'Full name is required.');
+      require('contactEmail', 'Email is required.');
+      if (safeTrim(form.contactEmail) && !isEmailLike(form.contactEmail)) {
+        errs.contactEmail = 'Please enter a valid email address.';
+      }
+    }
+
+    if (current === 'EVENT') {
+      require('eventTitle', 'Event title is required.');
+      if (form.eventType === 'Other') require('eventTypeOther', 'Please describe the event type.');
+    }
+
+    if (current === 'SCHEDULE') {
+      require('startDateTime', 'Start date/time is required.');
+      require('addressLine1', 'Street address is required.');
+      require('city', 'City is required.');
+      require('state', 'State is required.');
+      require('zip', 'ZIP is required.');
+    }
+
+    if (current === 'FINAL') {
+      if (!form.permissionToContact) {
+        errs.permissionToContact =
+          'Consent is required to submit. This confirms the request does not guarantee attendance.';
+      }
+    }
+
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
   }
+
+  function goNext() {
+    setError(null);
+    const ok = validateStep(step);
+    if (!ok) {
+      setStatus('ERROR');
+      setError('Please fix the highlighted fields to continue.');
+      return;
+    }
+    const idx = STEP_ORDER.indexOf(step);
+    const next = STEP_ORDER[Math.min(idx + 1, STEP_ORDER.length - 1)];
+    setStep(next);
+  }
+
+  function goBack() {
+    setError(null);
+    const idx = STEP_ORDER.indexOf(step);
+    const prev = STEP_ORDER[Math.max(idx - 1, 0)];
+    setStep(prev);
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                                  SUBMIT                                    */
+  /* -------------------------------------------------------------------------- */
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!canSubmit) {
-      setError('Please complete the required fields and confirm the consent checkbox.');
+    // Final validation sweep
+    for (const s of ['CONTACT', 'EVENT', 'SCHEDULE', 'FINAL'] as StepId[]) {
+      const ok = validateStep(s);
+      if (!ok) {
+        setStep(s);
+        setStatus('ERROR');
+        setError('Please fix the highlighted fields before submitting.');
+        return;
+      }
+    }
+
+    if (!requiredForSubmit) {
+      setStatus('ERROR');
+      setError('Please complete required fields and confirm consent.');
       return;
     }
 
     try {
       setSubmitting(true);
+      setStatus('SUBMITTING');
 
-      // NOTE: Turnstile token can be added later; keep payload shape stable.
-      await submitModule({
+      const res = await submitModule({
         moduleId: 'MODULE_001_EVENT_REQUEST',
         honeypot: form.honeypot,
         data: {
@@ -134,43 +356,133 @@ export default function EventRequestPage() {
           contactEmail: form.contactEmail,
           contactPhone: form.contactPhone || undefined,
           preferredContactMethod: form.preferredContactMethod,
+
           eventTitle: form.eventTitle,
           eventType: form.eventType,
           eventTypeOther: showOtherType ? form.eventTypeOther : undefined,
           eventDescription: form.eventDescription || undefined,
           expectedAttendance: form.expectedAttendance,
+
           startDateTime: form.startDateTime,
           endDateTime: form.endDateTime || undefined,
           isTimeFlexible: form.isTimeFlexible,
+
           venueName: form.venueName || undefined,
           addressLine1: form.addressLine1,
           addressLine2: form.addressLine2 || undefined,
           city: form.city,
           state: form.state,
           zip: form.zip,
+
           requestedRole: form.requestedRole,
           mediaExpected: form.mediaExpected,
-          permissionToContact: form.permissionToContact
-        }
+          permissionToContact: form.permissionToContact,
+        },
       });
 
+      setRequestId(res.requestId);
+      setStatus('SUBMITTED');
+      clearDraft();
       nav('/thank-you');
     } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      setStatus('ERROR');
+      setError(err?.message ?? 'Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                                   UI                                       */
+  /* -------------------------------------------------------------------------- */
+
+  const badge = statusBadge(status);
+  const currentIndex = STEP_ORDER.indexOf(step);
+
+  function Stepper() {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${badge.cls}`}>
+            <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+            <span className="font-medium">{badge.label}</span>
+          </div>
+
+          <button
+            type="button"
+            className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-4"
+            onClick={clearDraft}
+          >
+            Clear saved draft
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {STEP_ORDER.map((s, idx) => {
+            const isActive = s === step;
+            const isDone = idx < currentIndex;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  // allow backward navigation freely, forward only if current step valid
+                  if (idx <= currentIndex) setStep(s);
+                }}
+                className={[
+                  'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition',
+                  isActive ? 'border-slate-900 text-slate-900 bg-white' : 'border-slate-200 text-slate-600 bg-slate-50',
+                  isDone ? 'opacity-100' : '',
+                ].join(' ')}
+                aria-current={isActive ? 'step' : undefined}
+              >
+                {titleCaseStep(s)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function FieldHint({ id }: { id: string }) {
+    const msg = fieldErrors[id];
+    if (!msg) return null;
+    return <p className="mt-1 text-sm text-rose-600">{msg}</p>;
+  }
+
+  function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+    return (
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          {subtitle ? <p className="text-sm text-slate-600 leading-relaxed">{subtitle}</p> : null}
+        </div>
+        <div className="space-y-4">{children}</div>
+      </section>
+    );
+  }
+
+  function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-3 border-b border-slate-100">
+        <div className="text-sm font-medium text-slate-700">{label}</div>
+        <div className="md:col-span-2 text-sm text-slate-900">{value}</div>
+      </div>
+    );
   }
 
   return (
     <Container>
       <Card>
         <CardHeader
-          title="Event Request"
-          subtitle="If people are gathering in your community and you’re willing to invite Kelly to attend, please fill out this request."
+          title="Event Request Intake"
+          subtitle="A structured intake form used to schedule candidate engagements reliably and transparently."
         />
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-8">
+            <Stepper />
+
             {/* Honeypot */}
             <div className="hidden" aria-hidden="true">
               <Label htmlFor="companyWebsite">Company Website</Label>
@@ -184,306 +496,402 @@ export default function EventRequestPage() {
               />
             </div>
 
-            {/* Section 1 */}
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold">About You</h2>
-
-              <div>
-                <Label htmlFor="contactName">Full Name</Label>
-                <Input
-                  id="contactName"
-                  name="contactName"
-                  placeholder="Enter your name"
-                  value={form.contactName}
-                  onChange={(e) => update('contactName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="contactEmail">Email Address</Label>
-                <Input
-                  id="contactEmail"
-                  name="contactEmail"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={form.contactEmail}
-                  onChange={(e) => update('contactEmail', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="contactPhone">Phone Number (optional)</Label>
-                <Input
-                  id="contactPhone"
-                  name="contactPhone"
-                  placeholder="501-555-1234"
-                  value={form.contactPhone}
-                  onChange={(e) => update('contactPhone', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="preferredContactMethod">Preferred Contact Method</Label>
-                <Select
-                  id="preferredContactMethod"
-                  name="preferredContactMethod"
-                  value={form.preferredContactMethod}
-                  onChange={(e) => update('preferredContactMethod', e.target.value as FormState['preferredContactMethod'])}
-                >
-                  <option value="Email">Email</option>
-                  <option value="Phone">Phone</option>
-                  <option value="Text">Text</option>
-                </Select>
-              </div>
-            </section>
-
-            {/* Section 2 */}
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold">Event Information</h2>
-
-              <div>
-                <Label htmlFor="eventTitle">Event Title</Label>
-                <Input
-                  id="eventTitle"
-                  name="eventTitle"
-                  placeholder="Bryant High School Basketball Game"
-                  value={form.eventTitle}
-                  onChange={(e) => update('eventTitle', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="eventType">Event Type</Label>
-                <Select
-                  id="eventType"
-                  name="eventType"
-                  value={form.eventType}
-                  onChange={(e) => update('eventType', e.target.value as FormState['eventType'])}
-                >
-                  {EVENT_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </Select>
-              </div>
-
-              {showOtherType ? (
+            {/* CONTACT */}
+            {step === 'CONTACT' ? (
+              <Section
+                title="Contact"
+                subtitle="We use this information to confirm details, clarify scheduling, and coordinate arrival."
+              >
                 <div>
-                  <Label htmlFor="eventTypeOther">Please describe the event type</Label>
+                  <Label htmlFor="contactName">Full name</Label>
                   <Input
-                    id="eventTypeOther"
-                    name="eventTypeOther"
-                    placeholder="Describe the event"
-                    value={form.eventTypeOther}
-                    onChange={(e) => update('eventTypeOther', e.target.value)}
+                    id="contactName"
+                    name="contactName"
+                    placeholder="Your name"
+                    value={form.contactName}
+                    onChange={(e) => update('contactName', e.target.value)}
                   />
+                  <FieldHint id="contactName" />
                 </div>
-              ) : null}
 
-              <div>
-                <Label htmlFor="eventDescription">Event Description (optional)</Label>
-                <Textarea
-                  id="eventDescription"
-                  name="eventDescription"
-                  placeholder="Tell us anything helpful about this event..."
-                  rows={4}
-                  value={form.eventDescription}
-                  onChange={(e) => update('eventDescription', e.target.value)}
-                />
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="contactEmail">Email</Label>
+                    <Input
+                      id="contactEmail"
+                      name="contactEmail"
+                      type="email"
+                      placeholder="you@email.com"
+                      value={form.contactEmail}
+                      onChange={(e) => update('contactEmail', e.target.value)}
+                    />
+                    <FieldHint id="contactEmail" />
+                  </div>
 
-              <div>
-                <Label htmlFor="expectedAttendance">Estimated Attendance</Label>
-                <Select
-                  id="expectedAttendance"
-                  name="expectedAttendance"
-                  value={form.expectedAttendance}
-                  onChange={(e) => update('expectedAttendance', e.target.value as FormState['expectedAttendance'])}
-                >
-                  <option value="1–10">1–10</option>
-                  <option value="11–25">11–25</option>
-                  <option value="26–50">26–50</option>
-                  <option value="51–100">51–100</option>
-                  <option value="100+">100+</option>
-                </Select>
-              </div>
+                  <div>
+                    <Label htmlFor="contactPhone">Phone (optional)</Label>
+                    <Input
+                      id="contactPhone"
+                      name="contactPhone"
+                      placeholder="501-555-1234"
+                      value={form.contactPhone}
+                      onChange={(e) => update('contactPhone', e.target.value)}
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <Label htmlFor="requestedRole">What would you like Kelly to do at this event?</Label>
-                <Select
-                  id="requestedRole"
-                  name="requestedRole"
-                  value={form.requestedRole}
-                  onChange={(e) => update('requestedRole', e.target.value as FormState['requestedRole'])}
-                >
-                  <option value="Attend and greet attendees">Attend and greet attendees</option>
-                  <option value="Speak briefly">Speak briefly</option>
-                  <option value="Featured speaker">Featured speaker</option>
-                  <option value="Private meeting">Private meeting</option>
-                  <option value="Fundraiser ask">Fundraiser ask</option>
-                  <option value="Not sure">Not sure</option>
-                </Select>
-              </div>
-            </section>
-
-            {/* Section 3 */}
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold">When &amp; Where</h2>
-
-              <div>
-                <Label htmlFor="startDateTime">Event Date &amp; Start Time</Label>
-                <Input
-                  id="startDateTime"
-                  name="startDateTime"
-                  type="datetime-local"
-                  value={form.startDateTime}
-                  onChange={(e) => update('startDateTime', e.target.value)}
-                />
-                <HelpText>If you don’t know the exact time yet, choose your best estimate and check “Time is flexible.”</HelpText>
-              </div>
-
-              <div>
-                <Label htmlFor="endDateTime">End Time (optional)</Label>
-                <Input
-                  id="endDateTime"
-                  name="endDateTime"
-                  type="datetime-local"
-                  value={form.endDateTime}
-                  onChange={(e) => update('endDateTime', e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-start gap-3 rounded-xl bg-slate-950/40 p-4 ring-1 ring-white/10">
-                <input
-                  id="isTimeFlexible"
-                  name="isTimeFlexible"
-                  type="checkbox"
-                  className="mt-1 h-5 w-5 rounded-md bg-slate-950/60 ring-1 ring-white/10"
-                  checked={form.isTimeFlexible}
-                  onChange={(e) => update('isTimeFlexible', e.target.checked)}
-                />
                 <div>
-                  <Label htmlFor="isTimeFlexible">Time is flexible</Label>
-                  <HelpText>Select this if the start time could change.</HelpText>
+                  <Label htmlFor="preferredContactMethod">Preferred contact method</Label>
+                  <Select
+                    id="preferredContactMethod"
+                    name="preferredContactMethod"
+                    value={form.preferredContactMethod}
+                    onChange={(e) => update('preferredContactMethod', e.target.value as FormState['preferredContactMethod'])}
+                  >
+                    <option value="Email">Email</option>
+                    <option value="Phone">Phone</option>
+                    <option value="Text">Text</option>
+                  </Select>
                 </div>
-              </div>
+              </Section>
+            ) : null}
 
-              <div>
-                <Label htmlFor="venueName">Venue Name (if applicable)</Label>
-                <Input
-                  id="venueName"
-                  name="venueName"
-                  placeholder="First Baptist Church"
-                  value={form.venueName}
-                  onChange={(e) => update('venueName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="addressLine1">Street Address</Label>
-                <Input
-                  id="addressLine1"
-                  name="addressLine1"
-                  value={form.addressLine1}
-                  onChange={(e) => update('addressLine1', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="addressLine2">Address Line 2 (optional)</Label>
-                <Input
-                  id="addressLine2"
-                  name="addressLine2"
-                  value={form.addressLine2}
-                  onChange={(e) => update('addressLine2', e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <Label htmlFor="city">City</Label>
+            {/* EVENT */}
+            {step === 'EVENT' ? (
+              <Section
+                title="Event"
+                subtitle="Any size or subject is welcome — if people are gathering and you’re willing to invite Kelly, submit it here."
+              >
+                <div>
+                  <Label htmlFor="eventTitle">Event title</Label>
                   <Input
-                    id="city"
-                    name="city"
-                    value={form.city}
-                    onChange={(e) => update('city', e.target.value)}
+                    id="eventTitle"
+                    name="eventTitle"
+                    placeholder="Example: Bryant High School Basketball Game"
+                    value={form.eventTitle}
+                    onChange={(e) => update('eventTitle', e.target.value)}
+                  />
+                  <FieldHint id="eventTitle" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="eventType">Event type</Label>
+                    <Select
+                      id="eventType"
+                      name="eventType"
+                      value={form.eventType}
+                      onChange={(e) => update('eventType', e.target.value as FormState['eventType'])}
+                    >
+                      {EVENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="expectedAttendance">Estimated attendance</Label>
+                    <Select
+                      id="expectedAttendance"
+                      name="expectedAttendance"
+                      value={form.expectedAttendance}
+                      onChange={(e) => update('expectedAttendance', e.target.value as FormState['expectedAttendance'])}
+                    >
+                      <option value="1–10">1–10</option>
+                      <option value="11–25">11–25</option>
+                      <option value="26–50">26–50</option>
+                      <option value="51–100">51–100</option>
+                      <option value="100+">100+</option>
+                    </Select>
+                  </div>
+                </div>
+
+                {showOtherType ? (
+                  <div>
+                    <Label htmlFor="eventTypeOther">Describe the event type</Label>
+                    <Input
+                      id="eventTypeOther"
+                      name="eventTypeOther"
+                      placeholder="Example: Neighborhood association meeting"
+                      value={form.eventTypeOther}
+                      onChange={(e) => update('eventTypeOther', e.target.value)}
+                    />
+                    <FieldHint id="eventTypeOther" />
+                  </div>
+                ) : null}
+
+                <div>
+                  <Label htmlFor="eventDescription">Event description (optional)</Label>
+                  <Textarea
+                    id="eventDescription"
+                    name="eventDescription"
+                    placeholder="Anything that helps us plan: audience, agenda, accessibility, parking, security, special notes."
+                    rows={5}
+                    value={form.eventDescription}
+                    onChange={(e) => update('eventDescription', e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="state">State</Label>
+                  <Label htmlFor="requestedRole">Requested participation</Label>
+                  <Select
+                    id="requestedRole"
+                    name="requestedRole"
+                    value={form.requestedRole}
+                    onChange={(e) => update('requestedRole', e.target.value as FormState['requestedRole'])}
+                  >
+                    <option value="Attend and greet attendees">Attend and greet attendees</option>
+                    <option value="Speak briefly">Speak briefly</option>
+                    <option value="Featured speaker">Featured speaker</option>
+                    <option value="Private meeting">Private meeting</option>
+                    <option value="Fundraiser ask">Fundraiser ask</option>
+                    <option value="Not sure">Not sure</option>
+                  </Select>
+                </div>
+              </Section>
+            ) : null}
+
+            {/* SCHEDULE */}
+            {step === 'SCHEDULE' ? (
+              <Section
+                title="When & Where"
+                subtitle="Provide the best available information. If timing may change, mark it flexible."
+              >
+                <div>
+                  <Label htmlFor="startDateTime">Event date & start time</Label>
                   <Input
-                    id="state"
-                    name="state"
-                    value={form.state}
-                    onChange={(e) => update('state', e.target.value.toUpperCase())}
-                    maxLength={2}
+                    id="startDateTime"
+                    name="startDateTime"
+                    type="datetime-local"
+                    value={form.startDateTime}
+                    onChange={(e) => update('startDateTime', e.target.value)}
+                  />
+                  <FieldHint id="startDateTime" />
+                  <HelpText>If you don’t know the exact time yet, choose your best estimate and check “Time is flexible.”</HelpText>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="endDateTime">End time (optional)</Label>
+                    <Input
+                      id="endDateTime"
+                      name="endDateTime"
+                      type="datetime-local"
+                      value={form.endDateTime}
+                      onChange={(e) => update('endDateTime', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
+                    <input
+                      id="isTimeFlexible"
+                      name="isTimeFlexible"
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 rounded-md"
+                      checked={form.isTimeFlexible}
+                      onChange={(e) => update('isTimeFlexible', e.target.checked)}
+                    />
+                    <div>
+                      <Label htmlFor="isTimeFlexible">Time is flexible</Label>
+                      <HelpText>Select this if the start time could change.</HelpText>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="venueName">Venue name (optional)</Label>
+                  <Input
+                    id="venueName"
+                    name="venueName"
+                    placeholder="Example: First Baptist Church"
+                    value={form.venueName}
+                    onChange={(e) => update('venueName', e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="zip">ZIP Code</Label>
+                  <Label htmlFor="addressLine1">Street address</Label>
                   <Input
-                    id="zip"
-                    name="zip"
-                    value={form.zip}
-                    onChange={(e) => update('zip', e.target.value)}
-                    inputMode="numeric"
-                    pattern="\d{5}"
-                    maxLength={5}
+                    id="addressLine1"
+                    name="addressLine1"
+                    value={form.addressLine1}
+                    onChange={(e) => update('addressLine1', e.target.value)}
+                  />
+                  <FieldHint id="addressLine1" />
+                </div>
+
+                <div>
+                  <Label htmlFor="addressLine2">Address line 2 (optional)</Label>
+                  <Input
+                    id="addressLine2"
+                    name="addressLine2"
+                    value={form.addressLine2}
+                    onChange={(e) => update('addressLine2', e.target.value)}
                   />
                 </div>
-              </div>
-            </section>
 
-            {/* Section 4 */}
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold">Final Details</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input id="city" name="city" value={form.city} onChange={(e) => update('city', e.target.value)} />
+                    <FieldHint id="city" />
+                  </div>
 
-              <div>
-                <Label htmlFor="mediaExpected">Will media be present?</Label>
-                <Select
-                  id="mediaExpected"
-                  name="mediaExpected"
-                  value={form.mediaExpected}
-                  onChange={(e) => update('mediaExpected', e.target.value as FormState['mediaExpected'])}
-                >
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                  <option value="Not sure">Not sure</option>
-                </Select>
-              </div>
+                  <div>
+                    <Label htmlFor="state">State</Label>
+                    <Input
+                      id="state"
+                      name="state"
+                      value={form.state}
+                      onChange={(e) => update('state', e.target.value.toUpperCase())}
+                      maxLength={2}
+                    />
+                    <FieldHint id="state" />
+                  </div>
 
-              <div className="flex items-start gap-3 rounded-xl bg-slate-950/40 p-4 ring-1 ring-white/10">
-                <input
-                  id="permissionToContact"
-                  name="permissionToContact"
-                  type="checkbox"
-                  className="mt-1 h-5 w-5 rounded-md bg-slate-950/60 ring-1 ring-white/10"
-                  checked={form.permissionToContact}
-                  onChange={(e) => update('permissionToContact', e.target.checked)}
-                />
-                <div>
-                  <Label htmlFor="permissionToContact">
-                    I understand this is a request and does not guarantee attendance. The campaign may contact me for additional information.
-                  </Label>
+                  <div>
+                    <Label htmlFor="zip">ZIP</Label>
+                    <Input
+                      id="zip"
+                      name="zip"
+                      value={form.zip}
+                      onChange={(e) => update('zip', e.target.value)}
+                      inputMode="numeric"
+                      pattern="\d{5}"
+                      maxLength={5}
+                    />
+                    <FieldHint id="zip" />
+                  </div>
                 </div>
-              </div>
-            </section>
+              </Section>
+            ) : null}
+
+            {/* FINAL */}
+            {step === 'FINAL' ? (
+              <Section
+                title="Final Details"
+                subtitle="This helps triage requests and plan logistics."
+              >
+                <div>
+                  <Label htmlFor="mediaExpected">Will media be present?</Label>
+                  <Select
+                    id="mediaExpected"
+                    name="mediaExpected"
+                    value={form.mediaExpected}
+                    onChange={(e) => update('mediaExpected', e.target.value as FormState['mediaExpected'])}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                    <option value="Not sure">Not sure</option>
+                  </Select>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
+                  <input
+                    id="permissionToContact"
+                    name="permissionToContact"
+                    type="checkbox"
+                    className="mt-1 h-5 w-5 rounded-md"
+                    checked={form.permissionToContact}
+                    onChange={(e) => update('permissionToContact', e.target.checked)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="permissionToContact">
+                      I understand this is a request and does not guarantee attendance. The campaign may contact me for additional information.
+                    </Label>
+                    {fieldErrors.permissionToContact ? (
+                      <p className="text-sm text-rose-600">{fieldErrors.permissionToContact}</p>
+                    ) : null}
+                    <HelpText>Consent is required to submit.</HelpText>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  By submitting, you confirm the information is accurate to the best of your knowledge.
+                </p>
+              </Section>
+            ) : null}
+
+            {/* REVIEW */}
+            {step === 'REVIEW' ? (
+              <Section
+                title="Review & Submit"
+                subtitle="Please confirm details before submitting. This creates a tracking record and sends notifications."
+              >
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <ReviewRow label="Contact" value={`${safeTrim(form.contactName)} • ${safeTrim(form.contactEmail)}${safeTrim(form.contactPhone) ? ` • ${safeTrim(form.contactPhone)}` : ''}`} />
+                  <ReviewRow label="Preferred contact" value={form.preferredContactMethod} />
+                  <ReviewRow label="Event" value={safeTrim(form.eventTitle)} />
+                  <ReviewRow
+                    label="Type"
+                    value={
+                      form.eventType === 'Other'
+                        ? `Other — ${safeTrim(form.eventTypeOther)}`
+                        : form.eventType
+                    }
+                  />
+                  <ReviewRow label="Attendance" value={form.expectedAttendance} />
+                  <ReviewRow label="Requested role" value={form.requestedRole} />
+                  <ReviewRow label="Media" value={form.mediaExpected} />
+                  <ReviewRow
+                    label="Start"
+                    value={`${form.startDateTime}${form.isTimeFlexible ? ' (flexible)' : ''}`}
+                  />
+                  <ReviewRow label="End" value={form.endDateTime ? form.endDateTime : 'Not provided'} />
+                  <ReviewRow
+                    label="Location"
+                    value={
+                      <>
+                        <div>{safeTrim(form.venueName) ? safeTrim(form.venueName) : 'Venue not provided'}</div>
+                        <div>{safeTrim(form.addressLine1)}{safeTrim(form.addressLine2) ? `, ${safeTrim(form.addressLine2)}` : ''}</div>
+                        <div>{safeTrim(form.city)}, {safeTrim(form.state)} {safeTrim(form.zip)}</div>
+                      </>
+                    }
+                  />
+                  <ReviewRow label="Description" value={safeTrim(form.eventDescription) ? safeTrim(form.eventDescription) : 'Not provided'} />
+                  <ReviewRow label="Consent" value={form.permissionToContact ? 'Confirmed' : 'Not confirmed'} />
+                </div>
+
+                {!requiredForSubmit ? (
+                  <ErrorText>
+                    This request is not ready to submit. Please go back and complete the required fields.
+                  </ErrorText>
+                ) : null}
+              </Section>
+            ) : null}
 
             {error ? <ErrorText>{error}</ErrorText> : null}
 
-            <div className="space-y-3">
-              <Button type="submit" disabled={submitting || !canSubmit}>
-                {submitting ? 'Submitting…' : 'Submit Event Request'}
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => nav('/')}>
-                Back
-              </Button>
-            </div>
+            {/* CONTROLS */}
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <Button type="button" variant="secondary" onClick={() => nav('/')}>
+                  Back to Home
+                </Button>
 
-            <p className="text-xs text-slate-500 leading-relaxed">
-              By submitting, you confirm the information is accurate to the best of your knowledge.
-            </p>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="secondary" onClick={goBack} disabled={step === 'CONTACT' || submitting}>
+                    Back
+                  </Button>
+
+                  {step !== 'REVIEW' ? (
+                    <Button type="button" onClick={goNext} disabled={submitting}>
+                      Continue
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={submitting || !requiredForSubmit}>
+                      {submitting ? 'Submitting…' : 'Submit Event Request'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-500 leading-relaxed">
+                Your progress is saved automatically on this device. If you need to finish later, you can return and continue where you left off.
+              </div>
+            </div>
           </form>
         </CardContent>
       </Card>
