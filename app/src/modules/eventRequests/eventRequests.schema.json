@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "required": [
+    "contactName",
+    "contactEmail",
+    "eventTitle",
+    "eventType",
+    "startDateTime",
+    "addressLine1",
+    "city",
+    "state",
+    "zip",
+    "permissionToContact"
+  ],
+  "properties": {
+    "contactName": { "type": "string", "minLength": 2, "maxLength": 100 },
+    "contactEmail": { "type": "string", "format": "email" },
+    "contactPhone": { "type": "string", "minLength": 7, "maxLength": 20 },
+    "preferredContactMethod": { "type": "string", "enum": ["Email", "Phone", "Text"] },
+
+    "eventTitle": { "type": "string", "minLength": 3, "maxLength": 150 },
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "Candidate Forum / Debate",
+        "Church Service / Faith Event",
+        "Community Town Hall",
+        "School / Sports Event",
+        "Festival / Fair / Parade",
+        "Union / Workplace Gathering",
+        "Civic Club Meeting",
+        "House Meetup",
+        "Fundraiser",
+        "Small Business Visit",
+        "Other"
+      ]
+    },
+    "eventTypeOther": { "type": "string", "maxLength": 150 },
+    "eventDescription": { "type": "string", "maxLength": 2000 },
+    "expectedAttendance": { "type": "string", "enum": ["1–10", "11–25", "26–50", "51–100", "100+"] },
+
+    "startDateTime": { "type": "string", "format": "date-time" },
+    "endDateTime": { "type": "string", "format": "date-time" },
+    "isTimeFlexible": { "type": "boolean" },
+
+    "venueName": { "type": "string", "maxLength": 150 },
+    "addressLine1": { "type": "string", "minLength": 5, "maxLength": 200 },
+    "addressLine2": { "type": "string", "maxLength": 200 },
+    "city": { "type": "string", "maxLength": 100 },
+    "state": { "type": "string", "minLength": 2, "maxLength": 2 },
+    "zip": { "type": "string", "pattern": "^[0-9]{5}$" },
+
+    "requestedRole": {
+      "type": "string",
+      "enum": ["Attend and greet attendees", "Speak briefly", "Featured speaker", "Private meeting", "Fundraiser ask", "Not sure"]
+    },
+    "mediaExpected": { "type": "string", "enum": ["No", "Yes", "Not sure"] },
+
+    "permissionToContact": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "eventType": { "const": "Other" } } },
+      "then": { "required": ["eventTypeOther"] }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "onSubmit": [
+    {
+      "type": "sendEmail",
+      "to": "kelly@kellygrappe.com"
+    },
+    {
+      "type": "createCalendarEvent",
+      "calendar": "EVENT_REQUESTS",
+      "status": "REQUEST"
+    },
+    {
+      "type": "logSubmission",
+      "destination": "SHEET_OR_DB"
+    }
+  ]
+}
