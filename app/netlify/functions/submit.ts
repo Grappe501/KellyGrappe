@@ -35,9 +35,9 @@ function isSpam(honeypot?: string) {
   return typeof honeypot === 'string' && honeypot.trim().length > 0;
 }
 
-/* -------------------------------------------------------------------------- */
-/*                               HELPERS                                      */
-/* -------------------------------------------------------------------------- */
+function safe(v: unknown) {
+  return (v ?? '').toString();
+}
 
 function normalizeDate(value: unknown) {
   if (!value) return value;
@@ -58,23 +58,18 @@ async function logSubmission(_payload: unknown) {
   return true;
 }
 
-async function sendEmail(payload: {
-  requestId: string;
-  data: EventData;
-}) {
+async function sendEmails(payload: { requestId: string; data: EventData }) {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.EMAIL_TO;
   const from = process.env.EMAIL_FROM;
 
   if (!apiKey || !to || !from) {
-    console.warn('Resend not configured properly.');
-    return;
+    console.warn('[email] Missing environment variables.');
+    return { ok: false, skipped: true };
   }
 
   const resend = new Resend(apiKey);
   const { requestId, data } = payload;
-
-  const safe = (v: unknown) => (v ?? '').toString();
 
   const address = [
     safe(data.addressLine1),
@@ -84,11 +79,13 @@ async function sendEmail(payload: {
     .filter(Boolean)
     .join(', ');
 
-  const subject = `Event Request: ${safe(
+  /* ---------------- INTERNAL EMAIL ---------------- */
+
+  const internalSubject = `Event Request: ${safe(
     data.eventTitle
   )} — ${safe(data.city)}, ${safe(data.state)}`;
 
-  const htmlBody = `
+  const internalHtml = `
     <h2>New Event Request Submitted</h2>
     <p><strong>Request ID:</strong> ${requestId}</p>
 
@@ -96,59 +93,67 @@ async function sendEmail(payload: {
     <p>
       <strong>Name:</strong> ${safe(data.contactName)}<br/>
       <strong>Email:</strong> ${safe(data.contactEmail)}<br/>
-      <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}<br/>
-      <strong>Preferred Contact:</strong> ${safe(data.preferredContactMethod)}
+      <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}
     </p>
 
     <h3>Event</h3>
     <p>
       <strong>Title:</strong> ${safe(data.eventTitle)}<br/>
-      <strong>Type:</strong> ${safe(data.eventType)}${
-    data.eventType === 'Other'
-      ? ` (${safe(data.eventTypeOther)})`
-      : ''
-  }<br/>
-      <strong>Description:</strong> ${
-        safe(data.eventDescription) || 'N/A'
-      }<br/>
-      <strong>Estimated Attendance:</strong> ${safe(
-        data.expectedAttendance
-      )}<br/>
-      <strong>Requested Role:</strong> ${safe(
-        data.requestedRole
-      )}<br/>
-      <strong>Media Expected:</strong> ${safe(data.mediaExpected)}
-    </p>
-
-    <h3>Date & Time</h3>
-    <p>
       <strong>Start:</strong> ${safe(data.startDateTime)}<br/>
-      <strong>End:</strong> ${safe(data.endDateTime) || 'N/A'}<br/>
-      <strong>Flexible:</strong> ${data.isTimeFlexible ? 'Yes' : 'No'}
+      <strong>Location:</strong> ${address}
     </p>
-
-    <h3>Location</h3>
-    <p>
-      <strong>Venue:</strong> ${safe(data.venueName) || 'N/A'}<br/>
-      <strong>Address:</strong> ${address}
-    </p>
-
-    <p><strong>Consent Confirmed:</strong> ${
-      data.permissionToContact ? 'Yes' : 'No'
-    }</p>
   `;
 
-  const response = await resend.emails.send({
+  const internalResponse = await resend.emails.send({
     from,
     to,
-    subject,
-    html: htmlBody,
+    subject: internalSubject,
+    html: internalHtml,
+    reply_to: safe(data.contactEmail) || undefined,
   });
 
-  if (response.error) {
-    console.error('Resend error:', response.error);
-    throw new Error('Email delivery failed');
+  if (internalResponse.error) {
+    console.error('[email] Internal error:', internalResponse.error);
   }
+
+  /* ---------------- CONFIRMATION EMAIL ---------------- */
+
+  if (data.contactEmail) {
+    const confirmationSubject = 'We received your event request';
+
+    const confirmationHtml = `
+      <h2>Thank you for your event request</h2>
+      <p>Hi ${safe(data.contactName)},</p>
+
+      <p>We received your request for:</p>
+
+      <p>
+        <strong>${safe(data.eventTitle)}</strong><br/>
+        ${safe(data.startDateTime)}<br/>
+        ${address}
+      </p>
+
+      <p>Our team will review the request and follow up shortly.</p>
+
+      <p>— Kelly Grappe Campaign Team</p>
+    `;
+
+    const confirmationResponse = await resend.emails.send({
+      from,
+      to: safe(data.contactEmail),
+      subject: confirmationSubject,
+      html: confirmationHtml,
+    });
+
+    if (confirmationResponse.error) {
+      console.error(
+        '[email] Confirmation error:',
+        confirmationResponse.error
+      );
+    }
+  }
+
+  return { ok: true };
 }
 
 async function createCalendarEvent(_payload: unknown) {
@@ -165,7 +170,6 @@ export const handler: Handler = async (event) => {
   }
 
   let body: any;
-
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
@@ -184,20 +188,17 @@ export const handler: Handler = async (event) => {
     return json(200, { ok: true, requestId: randomUUID() });
   }
 
-  // 🔥 Auto-normalize date fields before validation
   data.startDateTime = normalizeDate(data.startDateTime);
   if (data.endDateTime) {
     data.endDateTime = normalizeDate(data.endDateTime);
   }
 
   const validate = validators[moduleId];
-
   if (!validate) {
     return json(400, { ok: false, error: 'Unknown moduleId' });
   }
 
   const valid = validate(data);
-
   if (!valid) {
     return json(400, {
       ok: false,
@@ -220,14 +221,33 @@ export const handler: Handler = async (event) => {
     },
   };
 
+  let emailResult: any = null;
+  let calendarResult: any = null;
+
   try {
     await logSubmission(payload);
-    await sendEmail(payload);
-    await createCalendarEvent(payload);
   } catch (err) {
-    console.error('Submit pipeline error:', err);
-    return json(500, { ok: false, error: 'Server error' });
+    console.error('[logSubmission] error:', err);
   }
 
-  return json(200, { ok: true, requestId });
+  try {
+    emailResult = await sendEmails({ requestId, data });
+  } catch (err) {
+    console.error('[sendEmails] error:', err);
+  }
+
+  try {
+    calendarResult = await createCalendarEvent(payload);
+  } catch (err) {
+    console.error('[calendar] error:', err);
+  }
+
+  return json(200, {
+    ok: true,
+    requestId,
+    actions: {
+      email: emailResult,
+      calendar: calendarResult,
+    },
+  });
 };
