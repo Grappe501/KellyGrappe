@@ -8,7 +8,7 @@ export default function LandingPage() {
 
   return (
     <Container>
-      <Card className="-mx-4 sm:mx-0">
+      <Card>
         <CardHeader
           title="Invite Kelly to Your Event"
           subtitle="We go where the people are. If people are gathering in your community, Kelly wants to show up, listen, and serve."
@@ -19,7 +19,10 @@ export default function LandingPage() {
           </p>
 
           <div className="mt-6">
-            <Button onClick={() => nav('/event-request')} className="w-full sm:w-auto">
+            <Button
+              onClick={() => nav('/event-request')}
+              className="w-full sm:w-auto"
+            >
               Submit an Event Request
             </Button>
           </div>
