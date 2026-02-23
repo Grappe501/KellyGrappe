@@ -8,18 +8,24 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   return (
     <div className="app-container">
-      <div className="header">
-        <h1>Office of the Secretary of State</h1>
-        <p>Official Event Request Submission</p>
-      </div>
+      <header className="header-modern">
+        <div className="header-inner">
+          <h1>Kelly Grappe for Arkansas Secretary of State</h1>
+          <p>
+            Official Event Request Submission
+          </p>
+        </div>
+      </header>
 
-      <div className="card">
+      <main className="card-modern">
         {children}
-      </div>
+      </main>
 
-      <div className="footer">
-        © {new Date().getFullYear()} Kelly Grappe Campaign. All rights reserved.
-      </div>
+      <footer className="footer-modern">
+        <p>
+          Building transparent, responsive public service.
+        </p>
+      </footer>
     </div>
   );
 }
