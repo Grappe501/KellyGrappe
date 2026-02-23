@@ -64,6 +64,13 @@ type FormState = {
 };
 
 type StepId = 'CONTACT' | 'EVENT' | 'SCHEDULE' | 'FINAL' | 'REVIEW';
+type IntakeStatus =
+  | 'DRAFT'
+  | 'IN_PROGRESS'
+  | 'READY'
+  | 'SUBMITTING'
+  | 'SUBMITTED'
+  | 'ERROR';
 
 const DRAFT_KEY = 'KG_SOS_EVENT_REQUEST_DRAFT_v1';
 
@@ -110,21 +117,37 @@ function titleCaseStep(step: StepId) {
 function statusBadge(status: IntakeStatus) {
   switch (status) {
     case 'DRAFT':
-      return { label: 'Draft saved', cls: 'bg-slate-100 text-slate-700 border-slate-200' };
+      return {
+        label: 'Draft saved',
+        cls: 'bg-slate-100 text-slate-700 border-slate-200',
+      };
     case 'IN_PROGRESS':
-      return { label: 'In progress', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+      return {
+        label: 'In progress',
+        cls: 'bg-blue-50 text-blue-700 border-blue-200',
+      };
     case 'READY':
-      return { label: 'Ready to submit', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+      return {
+        label: 'Ready to submit',
+        cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      };
     case 'SUBMITTING':
-      return { label: 'Submitting…', cls: 'bg-amber-50 text-amber-800 border-amber-200' };
+      return {
+        label: 'Submitting…',
+        cls: 'bg-amber-50 text-amber-800 border-amber-200',
+      };
     case 'SUBMITTED':
-      return { label: 'Submitted', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+      return {
+        label: 'Submitted',
+        cls: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      };
     case 'ERROR':
-      return { label: 'Needs attention', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+      return {
+        label: 'Needs attention',
+        cls: 'bg-rose-50 text-rose-700 border-rose-200',
+      };
   }
 }
-
-type IntakeStatus = 'DRAFT' | 'IN_PROGRESS' | 'READY' | 'SUBMITTING' | 'SUBMITTED' | 'ERROR';
 
 export default function EventRequestPage() {
   const nav = useNavigate();
@@ -256,7 +279,9 @@ export default function EventRequestPage() {
   useEffect(() => {
     if (submitting) return;
     if (requestId) return;
-    setStatus(requiredForSubmit ? 'READY' : status === 'DRAFT' ? 'DRAFT' : 'IN_PROGRESS');
+    setStatus(
+      requiredForSubmit ? 'READY' : status === 'DRAFT' ? 'DRAFT' : 'IN_PROGRESS'
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requiredForSubmit]);
 
@@ -277,7 +302,8 @@ export default function EventRequestPage() {
 
     if (current === 'EVENT') {
       require('eventTitle', 'Event title is required.');
-      if (form.eventType === 'Other') require('eventTypeOther', 'Please describe the event type.');
+      if (form.eventType === 'Other')
+        require('eventTypeOther', 'Please describe the event type.');
     }
 
     if (current === 'SCHEDULE') {
@@ -402,44 +428,51 @@ export default function EventRequestPage() {
   function Stepper() {
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${badge.cls}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${badge.cls}`}
+          >
             <span className="h-2 w-2 rounded-full bg-current opacity-70" />
             <span className="font-medium">{badge.label}</span>
           </div>
 
           <button
             type="button"
-            className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-4"
+            className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-4 self-start sm:self-auto"
             onClick={clearDraft}
           >
             Clear saved draft
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {STEP_ORDER.map((s, idx) => {
-            const isActive = s === step;
-            const isDone = idx < currentIndex;
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  // allow backward navigation freely, forward only if current step valid
-                  if (idx <= currentIndex) setStep(s);
-                }}
-                className={[
-                  'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition',
-                  isActive ? 'border-slate-900 text-slate-900 bg-white' : 'border-slate-200 text-slate-700 bg-slate-50',
-                  isDone ? 'opacity-100' : '',
-                ].join(' ')}
-                aria-current={isActive ? 'step' : undefined}
-              >
-                {titleCaseStep(s)}
-              </button>
-            );
-          })}
+        {/* Mobile-first: horizontally scrollable step pills (no overflow / squish) */}
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <div className="flex items-center gap-2 min-w-max">
+            {STEP_ORDER.map((s, idx) => {
+              const isActive = s === step;
+              const isDone = idx < currentIndex;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    // allow backward navigation freely, forward only if current step valid
+                    if (idx <= currentIndex) setStep(s);
+                  }}
+                  className={[
+                    'flex-none rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    isActive
+                      ? 'border-slate-900 text-slate-900 bg-white'
+                      : 'border-slate-200 text-slate-700 bg-slate-50 hover:bg-white',
+                    isDone ? 'opacity-100' : '',
+                  ].join(' ')}
+                  aria-current={isActive ? 'step' : undefined}
+                >
+                  {titleCaseStep(s)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -451,19 +484,37 @@ export default function EventRequestPage() {
     return <p className="mt-1 text-sm text-rose-600">{msg}</p>;
   }
 
-  function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  function Section({
+    title,
+    subtitle,
+    children,
+  }: {
+    title: string;
+    subtitle?: string;
+    children: React.ReactNode;
+  }) {
     return (
       <section className="space-y-4">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
-          {subtitle ? <p className="text-sm text-slate-600 leading-relaxed">{subtitle}</p> : null}
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="text-sm text-slate-600 leading-relaxed">{subtitle}</p>
+          ) : null}
         </div>
         <div className="space-y-4">{children}</div>
       </section>
     );
   }
 
-  function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
+  function ReviewRow({
+    label,
+    value,
+  }: {
+    label: string;
+    value: React.ReactNode;
+  }) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-3 border-b border-slate-100">
         <div className="text-sm font-medium text-slate-700">{label}</div>
@@ -474,13 +525,14 @@ export default function EventRequestPage() {
 
   return (
     <Container>
-      {/* Enforce readable typography inside the white Card surface even if the outer page shell uses text-white */}
-      <Card className="text-slate-900">
+      {/* Single surface (avoid “nested card” feel) */}
+      <Card className="bg-white text-slate-900">
         <CardHeader
           title="Event Request Intake"
           subtitle="A structured intake form used to schedule candidate engagements reliably and transparently."
+          className="bg-white"
         />
-        <CardContent>
+        <CardContent className="bg-white">
           <form onSubmit={onSubmit} className="space-y-8 text-slate-900">
             <Stepper />
 
@@ -542,12 +594,19 @@ export default function EventRequestPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="preferredContactMethod">Preferred contact method</Label>
+                  <Label htmlFor="preferredContactMethod">
+                    Preferred contact method
+                  </Label>
                   <Select
                     id="preferredContactMethod"
                     name="preferredContactMethod"
                     value={form.preferredContactMethod}
-                    onChange={(e) => update('preferredContactMethod', e.target.value as FormState['preferredContactMethod'])}
+                    onChange={(e) =>
+                      update(
+                        'preferredContactMethod',
+                        e.target.value as FormState['preferredContactMethod']
+                      )
+                    }
                   >
                     <option value="Email">Email</option>
                     <option value="Phone">Phone</option>
@@ -582,7 +641,12 @@ export default function EventRequestPage() {
                       id="eventType"
                       name="eventType"
                       value={form.eventType}
-                      onChange={(e) => update('eventType', e.target.value as FormState['eventType'])}
+                      onChange={(e) =>
+                        update(
+                          'eventType',
+                          e.target.value as FormState['eventType']
+                        )
+                      }
                     >
                       {EVENT_TYPES.map((t) => (
                         <option key={t} value={t}>
@@ -593,12 +657,19 @@ export default function EventRequestPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="expectedAttendance">Estimated attendance</Label>
+                    <Label htmlFor="expectedAttendance">
+                      Estimated attendance
+                    </Label>
                     <Select
                       id="expectedAttendance"
                       name="expectedAttendance"
                       value={form.expectedAttendance}
-                      onChange={(e) => update('expectedAttendance', e.target.value as FormState['expectedAttendance'])}
+                      onChange={(e) =>
+                        update(
+                          'expectedAttendance',
+                          e.target.value as FormState['expectedAttendance']
+                        )
+                      }
                     >
                       <option value="1–10">1–10</option>
                       <option value="11–25">11–25</option>
@@ -611,7 +682,9 @@ export default function EventRequestPage() {
 
                 {showOtherType ? (
                   <div>
-                    <Label htmlFor="eventTypeOther">Describe the event type</Label>
+                    <Label htmlFor="eventTypeOther">
+                      Describe the event type
+                    </Label>
                     <Input
                       id="eventTypeOther"
                       name="eventTypeOther"
@@ -624,7 +697,9 @@ export default function EventRequestPage() {
                 ) : null}
 
                 <div>
-                  <Label htmlFor="eventDescription">Event description (optional)</Label>
+                  <Label htmlFor="eventDescription">
+                    Event description (optional)
+                  </Label>
                   <Textarea
                     id="eventDescription"
                     name="eventDescription"
@@ -641,9 +716,16 @@ export default function EventRequestPage() {
                     id="requestedRole"
                     name="requestedRole"
                     value={form.requestedRole}
-                    onChange={(e) => update('requestedRole', e.target.value as FormState['requestedRole'])}
+                    onChange={(e) =>
+                      update(
+                        'requestedRole',
+                        e.target.value as FormState['requestedRole']
+                      )
+                    }
                   >
-                    <option value="Attend and greet attendees">Attend and greet attendees</option>
+                    <option value="Attend and greet attendees">
+                      Attend and greet attendees
+                    </option>
                     <option value="Speak briefly">Speak briefly</option>
                     <option value="Featured speaker">Featured speaker</option>
                     <option value="Private meeting">Private meeting</option>
@@ -670,7 +752,10 @@ export default function EventRequestPage() {
                     onChange={(e) => update('startDateTime', e.target.value)}
                   />
                   <FieldHint id="startDateTime" />
-                  <HelpText>If you don’t know the exact time yet, choose your best estimate and check “Time is flexible.”</HelpText>
+                  <HelpText>
+                    If you don’t know the exact time yet, choose your best
+                    estimate and check “Time is flexible.”
+                  </HelpText>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -696,7 +781,9 @@ export default function EventRequestPage() {
                     />
                     <div>
                       <Label htmlFor="isTimeFlexible">Time is flexible</Label>
-                      <HelpText>Select this if the start time could change.</HelpText>
+                      <HelpText>
+                        Select this if the start time could change.
+                      </HelpText>
                     </div>
                   </div>
                 </div>
@@ -736,7 +823,12 @@ export default function EventRequestPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="city">City</Label>
-                    <Input id="city" name="city" value={form.city} onChange={(e) => update('city', e.target.value)} />
+                    <Input
+                      id="city"
+                      name="city"
+                      value={form.city}
+                      onChange={(e) => update('city', e.target.value)}
+                    />
                     <FieldHint id="city" />
                   </div>
 
@@ -746,7 +838,9 @@ export default function EventRequestPage() {
                       id="state"
                       name="state"
                       value={form.state}
-                      onChange={(e) => update('state', e.target.value.toUpperCase())}
+                      onChange={(e) =>
+                        update('state', e.target.value.toUpperCase())
+                      }
                       maxLength={2}
                     />
                     <FieldHint id="state" />
@@ -781,7 +875,12 @@ export default function EventRequestPage() {
                     id="mediaExpected"
                     name="mediaExpected"
                     value={form.mediaExpected}
-                    onChange={(e) => update('mediaExpected', e.target.value as FormState['mediaExpected'])}
+                    onChange={(e) =>
+                      update(
+                        'mediaExpected',
+                        e.target.value as FormState['mediaExpected']
+                      )
+                    }
                   >
                     <option value="No">No</option>
                     <option value="Yes">Yes</option>
@@ -796,21 +895,28 @@ export default function EventRequestPage() {
                     type="checkbox"
                     className="mt-1 h-5 w-5 rounded-md"
                     checked={form.permissionToContact}
-                    onChange={(e) => update('permissionToContact', e.target.checked)}
+                    onChange={(e) =>
+                      update('permissionToContact', e.target.checked)
+                    }
                   />
                   <div className="space-y-1">
                     <Label htmlFor="permissionToContact">
-                      I understand this is a request and does not guarantee attendance. The campaign may contact me for additional information.
+                      I understand this is a request and does not guarantee
+                      attendance. The campaign may contact me for additional
+                      information.
                     </Label>
                     {fieldErrors.permissionToContact ? (
-                      <p className="text-sm text-rose-600">{fieldErrors.permissionToContact}</p>
+                      <p className="text-sm text-rose-600">
+                        {fieldErrors.permissionToContact}
+                      </p>
                     ) : null}
                     <HelpText>Consent is required to submit.</HelpText>
                   </div>
                 </div>
 
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  By submitting, you confirm the information is accurate to the best of your knowledge.
+                  By submitting, you confirm the information is accurate to the
+                  best of your knowledge.
                 </p>
               </Section>
             ) : null}
@@ -822,8 +928,16 @@ export default function EventRequestPage() {
                 subtitle="Please confirm details before submitting. This creates a tracking record and sends notifications."
               >
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <ReviewRow label="Contact" value={`${safeTrim(form.contactName)} • ${safeTrim(form.contactEmail)}${safeTrim(form.contactPhone) ? ` • ${safeTrim(form.contactPhone)}` : ''}`} />
-                  <ReviewRow label="Preferred contact" value={form.preferredContactMethod} />
+                  <ReviewRow
+                    label="Contact"
+                    value={`${safeTrim(form.contactName)} • ${safeTrim(
+                      form.contactEmail
+                    )}${safeTrim(form.contactPhone) ? ` • ${safeTrim(form.contactPhone)}` : ''}`}
+                  />
+                  <ReviewRow
+                    label="Preferred contact"
+                    value={form.preferredContactMethod}
+                  />
                   <ReviewRow label="Event" value={safeTrim(form.eventTitle)} />
                   <ReviewRow
                     label="Type"
@@ -834,30 +948,59 @@ export default function EventRequestPage() {
                     }
                   />
                   <ReviewRow label="Attendance" value={form.expectedAttendance} />
-                  <ReviewRow label="Requested role" value={form.requestedRole} />
+                  <ReviewRow
+                    label="Requested role"
+                    value={form.requestedRole}
+                  />
                   <ReviewRow label="Media" value={form.mediaExpected} />
                   <ReviewRow
                     label="Start"
                     value={`${form.startDateTime}${form.isTimeFlexible ? ' (flexible)' : ''}`}
                   />
-                  <ReviewRow label="End" value={form.endDateTime ? form.endDateTime : 'Not provided'} />
+                  <ReviewRow
+                    label="End"
+                    value={form.endDateTime ? form.endDateTime : 'Not provided'}
+                  />
                   <ReviewRow
                     label="Location"
                     value={
                       <>
-                        <div>{safeTrim(form.venueName) ? safeTrim(form.venueName) : 'Venue not provided'}</div>
-                        <div>{safeTrim(form.addressLine1)}{safeTrim(form.addressLine2) ? `, ${safeTrim(form.addressLine2)}` : ''}</div>
-                        <div>{safeTrim(form.city)}, {safeTrim(form.state)} {safeTrim(form.zip)}</div>
+                        <div>
+                          {safeTrim(form.venueName)
+                            ? safeTrim(form.venueName)
+                            : 'Venue not provided'}
+                        </div>
+                        <div>
+                          {safeTrim(form.addressLine1)}
+                          {safeTrim(form.addressLine2)
+                            ? `, ${safeTrim(form.addressLine2)}`
+                            : ''}
+                        </div>
+                        <div>
+                          {safeTrim(form.city)}, {safeTrim(form.state)}{' '}
+                          {safeTrim(form.zip)}
+                        </div>
                       </>
                     }
                   />
-                  <ReviewRow label="Description" value={safeTrim(form.eventDescription) ? safeTrim(form.eventDescription) : 'Not provided'} />
-                  <ReviewRow label="Consent" value={form.permissionToContact ? 'Confirmed' : 'Not confirmed'} />
+                  <ReviewRow
+                    label="Description"
+                    value={
+                      safeTrim(form.eventDescription)
+                        ? safeTrim(form.eventDescription)
+                        : 'Not provided'
+                    }
+                  />
+                  <ReviewRow
+                    label="Consent"
+                    value={form.permissionToContact ? 'Confirmed' : 'Not confirmed'}
+                  />
                 </div>
 
                 {!requiredForSubmit ? (
                   <ErrorText>
-                    This request is not ready to submit. Please go back and complete the required fields.
+                    This request is not ready to submit. Please go back and
+                    complete the required fields.
                   </ErrorText>
                 ) : null}
               </Section>
@@ -866,23 +1009,43 @@ export default function EventRequestPage() {
             {error ? <ErrorText>{error}</ErrorText> : null}
 
             {/* CONTROLS */}
-            <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center justify-between gap-3">
-                <Button type="button" variant="secondary" onClick={() => nav('/')}>
+            <div className="pt-2 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => nav('/')}
+                  className="w-full sm:w-auto"
+                >
                   Back to Home
                 </Button>
 
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="secondary" onClick={goBack} disabled={step === 'CONTACT' || submitting}>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={goBack}
+                    disabled={step === 'CONTACT' || submitting}
+                    className="w-full sm:w-auto"
+                  >
                     Back
                   </Button>
 
                   {step !== 'REVIEW' ? (
-                    <Button type="button" onClick={goNext} disabled={submitting}>
+                    <Button
+                      type="button"
+                      onClick={goNext}
+                      disabled={submitting}
+                      className="w-full sm:w-auto"
+                    >
                       Continue
                     </Button>
                   ) : (
-                    <Button type="submit" disabled={submitting || !requiredForSubmit}>
+                    <Button
+                      type="submit"
+                      disabled={submitting || !requiredForSubmit}
+                      className="w-full sm:w-auto"
+                    >
                       {submitting ? 'Submitting…' : 'Submit Event Request'}
                     </Button>
                   )}
@@ -890,7 +1053,8 @@ export default function EventRequestPage() {
               </div>
 
               <div className="text-xs text-slate-500 leading-relaxed">
-                Your progress is saved automatically on this device. If you need to finish later, you can return and continue where you left off.
+                Your progress is saved automatically on this device. If you need
+                to finish later, you can return and continue where you left off.
               </div>
             </div>
           </form>
