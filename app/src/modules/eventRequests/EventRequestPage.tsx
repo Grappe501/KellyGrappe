@@ -431,7 +431,7 @@ export default function EventRequestPage() {
                 }}
                 className={[
                   'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition',
-                  isActive ? 'border-slate-900 text-slate-900 bg-white' : 'border-slate-200 text-slate-600 bg-slate-50',
+                  isActive ? 'border-slate-900 text-slate-900 bg-white' : 'border-slate-200 text-slate-700 bg-slate-50',
                   isDone ? 'opacity-100' : '',
                 ].join(' ')}
                 aria-current={isActive ? 'step' : undefined}
@@ -455,7 +455,7 @@ export default function EventRequestPage() {
     return (
       <section className="space-y-4">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
           {subtitle ? <p className="text-sm text-slate-600 leading-relaxed">{subtitle}</p> : null}
         </div>
         <div className="space-y-4">{children}</div>
@@ -474,13 +474,14 @@ export default function EventRequestPage() {
 
   return (
     <Container>
-      <Card>
+      {/* Enforce readable typography inside the white Card surface even if the outer page shell uses text-white */}
+      <Card className="text-slate-900">
         <CardHeader
           title="Event Request Intake"
           subtitle="A structured intake form used to schedule candidate engagements reliably and transparently."
         />
         <CardContent>
-          <form onSubmit={onSubmit} className="space-y-8">
+          <form onSubmit={onSubmit} className="space-y-8 text-slate-900">
             <Stepper />
 
             {/* Honeypot */}
