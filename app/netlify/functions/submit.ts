@@ -8,16 +8,20 @@ import eventSchema from './eventRequests.schema.json';
 
 type ModuleId = 'MODULE_001_EVENT_REQUEST';
 
-const ajv = new Ajv({ allErrors: true, removeAdditional: false });
+type EventData = Record<string, any>;
+
+const ajv = new Ajv({
+  allErrors: true,
+  removeAdditional: false,
+  strict: false,
+});
 addFormats(ajv);
 
 const validators: Record<ModuleId, ReturnType<typeof ajv.compile>> = {
   MODULE_001_EVENT_REQUEST: ajv.compile(eventSchema as any),
 };
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-function json(statusCode: number, body: any) {
+function json(statusCode: number, body: unknown) {
   return {
     statusCode,
     headers: {
@@ -32,35 +36,44 @@ function isSpam(honeypot?: string) {
   return typeof honeypot === 'string' && honeypot.trim().length > 0;
 }
 
-/**
- * Phase 1 action pipeline
- */
+/* -------------------------------------------------------------------------- */
+/*                                ACTIONS                                     */
+/* -------------------------------------------------------------------------- */
 
-async function logSubmission(_payload: any) {
-  // Future: Google Sheets or Supabase logging
+async function logSubmission(_payload: unknown) {
+  // Future: Supabase / Google Sheets
   return true;
 }
 
-async function sendEmail(payload: any) {
+async function sendEmail(payload: {
+  requestId: string;
+  data: EventData;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.EMAIL_TO;
   const from = process.env.EMAIL_FROM;
 
-  if (!process.env.RESEND_API_KEY || !to || !from) {
-    console.warn('Resend environment variables not configured.');
+  if (!apiKey || !to || !from) {
+    console.warn('Resend not configured properly.');
     return;
   }
 
+  const resend = new Resend(apiKey);
   const { requestId, data } = payload;
 
+  const safe = (v: unknown) => (v ?? '').toString();
+
   const address = [
-    data.addressLine1,
-    data.addressLine2,
-    `${data.city}, ${data.state} ${data.zip}`
+    safe(data.addressLine1),
+    safe(data.addressLine2),
+    `${safe(data.city)}, ${safe(data.state)} ${safe(data.zip)}`,
   ]
     .filter(Boolean)
     .join(', ');
 
-  const subject = `Event Request: ${data.eventTitle} — ${data.city}, ${data.state}`;
+  const subject = `Event Request: ${safe(
+    data.eventTitle
+  )} — ${safe(data.city)}, ${safe(data.state)}`;
 
   const htmlBody = `
     <h2>New Event Request Submitted</h2>
@@ -68,50 +81,75 @@ async function sendEmail(payload: any) {
 
     <h3>Contact</h3>
     <p>
-      <strong>Name:</strong> ${data.contactName}<br/>
-      <strong>Email:</strong> ${data.contactEmail}<br/>
-      <strong>Phone:</strong> ${data.contactPhone || 'N/A'}<br/>
-      <strong>Preferred Contact:</strong> ${data.preferredContactMethod}
+      <strong>Name:</strong> ${safe(data.contactName)}<br/>
+      <strong>Email:</strong> ${safe(data.contactEmail)}<br/>
+      <strong>Phone:</strong> ${safe(data.contactPhone) || 'N/A'}<br/>
+      <strong>Preferred Contact:</strong> ${safe(
+        data.preferredContactMethod
+      )}
     </p>
 
     <h3>Event</h3>
     <p>
-      <strong>Title:</strong> ${data.eventTitle}<br/>
-      <strong>Type:</strong> ${data.eventType}${data.eventType === 'Other' ? ` (${data.eventTypeOther})` : ''}<br/>
-      <strong>Description:</strong> ${data.eventDescription || 'N/A'}<br/>
-      <strong>Estimated Attendance:</strong> ${data.expectedAttendance}<br/>
-      <strong>Requested Role:</strong> ${data.requestedRole}<br/>
-      <strong>Media Expected:</strong> ${data.mediaExpected}
+      <strong>Title:</strong> ${safe(data.eventTitle)}<br/>
+      <strong>Type:</strong> ${safe(data.eventType)}${
+    data.eventType === 'Other'
+      ? ` (${safe(data.eventTypeOther)})`
+      : ''
+  }<br/>
+      <strong>Description:</strong> ${
+        safe(data.eventDescription) || 'N/A'
+      }<br/>
+      <strong>Estimated Attendance:</strong> ${safe(
+        data.expectedAttendance
+      )}<br/>
+      <strong>Requested Role:</strong> ${safe(
+        data.requestedRole
+      )}<br/>
+      <strong>Media Expected:</strong> ${safe(data.mediaExpected)}
     </p>
 
     <h3>Date & Time</h3>
     <p>
-      <strong>Start:</strong> ${data.startDateTime}<br/>
-      <strong>End:</strong> ${data.endDateTime || 'N/A'}<br/>
-      <strong>Flexible:</strong> ${data.isTimeFlexible ? 'Yes' : 'No'}
+      <strong>Start:</strong> ${safe(data.startDateTime)}<br/>
+      <strong>End:</strong> ${safe(data.endDateTime) || 'N/A'}<br/>
+      <strong>Flexible:</strong> ${
+        data.isTimeFlexible ? 'Yes' : 'No'
+      }
     </p>
 
     <h3>Location</h3>
     <p>
-      <strong>Venue:</strong> ${data.venueName || 'N/A'}<br/>
+      <strong>Venue:</strong> ${safe(data.venueName) || 'N/A'}<br/>
       <strong>Address:</strong> ${address}
     </p>
 
-    <p><strong>Consent Confirmed:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
+    <p><strong>Consent Confirmed:</strong> ${
+      data.permissionToContact ? 'Yes' : 'No'
+    }</p>
   `;
 
-  await resend.emails.send({
+  const response = await resend.emails.send({
     from,
     to,
     subject,
     html: htmlBody,
   });
+
+  if (response.error) {
+    console.error('Resend error:', response.error);
+    throw new Error('Email delivery failed');
+  }
 }
 
-async function createCalendarEvent(_payload: any) {
+async function createCalendarEvent(_payload: unknown) {
   // Phase 2 integration
   return true;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                  HANDLER                                   */
+/* -------------------------------------------------------------------------- */
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -119,6 +157,7 @@ export const handler: Handler = async (event) => {
   }
 
   let body: any;
+
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
@@ -126,7 +165,7 @@ export const handler: Handler = async (event) => {
   }
 
   const moduleId = body?.moduleId as ModuleId | undefined;
-  const data = body?.data as Record<string, any> | undefined;
+  const data = body?.data as EventData | undefined;
   const honeypot = body?.honeypot as string | undefined;
 
   if (!moduleId || !data) {
@@ -134,20 +173,24 @@ export const handler: Handler = async (event) => {
   }
 
   if (isSpam(honeypot)) {
+    // Silently accept spam
     return json(200, { ok: true, requestId: randomUUID() });
   }
 
   const validate = validators[moduleId];
+
   if (!validate) {
     return json(400, { ok: false, error: 'Unknown moduleId' });
   }
 
   const valid = validate(data);
+
   if (!valid) {
-    const details = (validate.errors || [])
-      .map((e) => `${e.instancePath || '/'} ${e.message}`)
-      .join('; ');
-    return json(400, { ok: false, error: 'Validation failed', details });
+    return json(400, {
+      ok: false,
+      error: 'Validation failed',
+      details: validate.errors,
+    });
   }
 
   const requestId = randomUUID();
@@ -156,14 +199,19 @@ export const handler: Handler = async (event) => {
     requestId,
     moduleId,
     data,
-    meta: { ip: event.headers['x-nf-client-connection-ip'] ?? null }
+    meta: {
+      ip:
+        event.headers['x-nf-client-connection-ip'] ||
+        event.headers['x-forwarded-for'] ||
+        null,
+    },
   };
 
   try {
     await logSubmission(payload);
     await sendEmail(payload);
     await createCalendarEvent(payload);
-  } catch (err: any) {
+  } catch (err) {
     console.error('Submit pipeline error:', err);
     return json(500, { ok: false, error: 'Server error' });
   }
