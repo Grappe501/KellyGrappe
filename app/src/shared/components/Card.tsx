@@ -22,6 +22,8 @@ export function Card({ children, className }: CardProps) {
       className={[
         // Enterprise, calm surface
         'rounded-2xl bg-white',
+        // IMPORTANT: lock readable foreground on light surfaces (prevents dark-shell inheritance issues)
+        'text-slate-900',
         // Crisp border + subtle elevation (SaaS)
         'border border-slate-200 shadow-sm',
         // Prevent visual glitches with inner rounded children
