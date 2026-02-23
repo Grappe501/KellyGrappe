@@ -1,31 +1,13 @@
 import React from 'react';
-import '../styles/theme.css';
 
-interface LayoutProps {
+type Props = {
   children: React.ReactNode;
-}
+};
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children }: Props) {
   return (
-    <div className="app-container">
-      <header className="header-modern">
-        <div className="header-inner">
-          <h1>Kelly Grappe for Arkansas Secretary of State</h1>
-          <p>
-            Official Event Request Submission
-          </p>
-        </div>
-      </header>
-
-      <main className="card-modern">
-        {children}
-      </main>
-
-      <footer className="footer-modern">
-        <p>
-          Building transparent, responsive public service.
-        </p>
-      </footer>
+    <div className="min-h-screen w-full bg-slate-50 text-slate-900">
+      {children}
     </div>
   );
 }
