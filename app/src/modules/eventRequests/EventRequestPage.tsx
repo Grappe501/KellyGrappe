@@ -198,7 +198,6 @@ export default function EventRequestPage() {
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setStatus((s) => (s === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS'));
-    // Clear field error on change
     setFieldErrors((prev) => {
       if (!prev[key as string]) return prev;
       const copy = { ...prev };
@@ -212,7 +211,6 @@ export default function EventRequestPage() {
   /* -------------------------------------------------------------------------- */
 
   useEffect(() => {
-    // Draft hydrate (once)
     if (didHydrateDraft.current) return;
     didHydrateDraft.current = true;
 
@@ -232,7 +230,6 @@ export default function EventRequestPage() {
   }, []);
 
   useEffect(() => {
-    // Draft autosave
     try {
       localStorage.setItem(
         DRAFT_KEY,
@@ -261,7 +258,6 @@ export default function EventRequestPage() {
   /* -------------------------------------------------------------------------- */
 
   const requiredForSubmit = useMemo(() => {
-    // Submit-level requirements (enterprise gate)
     if (!form.permissionToContact) return false;
     if (!safeTrim(form.contactName)) return false;
     if (!safeTrim(form.contactEmail)) return false;
@@ -353,7 +349,6 @@ export default function EventRequestPage() {
     e.preventDefault();
     setError(null);
 
-    // Final validation sweep
     for (const s of ['CONTACT', 'EVENT', 'SCHEDULE', 'FINAL'] as StepId[]) {
       const ok = validateStep(s);
       if (!ok) {
@@ -445,7 +440,6 @@ export default function EventRequestPage() {
           </button>
         </div>
 
-        {/* Mobile-first: horizontally scrollable step pills (no overflow / squish) */}
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <div className="flex items-center gap-2 min-w-max">
             {STEP_ORDER.map((s, idx) => {
@@ -456,7 +450,6 @@ export default function EventRequestPage() {
                   key={s}
                   type="button"
                   onClick={() => {
-                    // allow backward navigation freely, forward only if current step valid
                     if (idx <= currentIndex) setStep(s);
                   }}
                   className={[
@@ -525,14 +518,17 @@ export default function EventRequestPage() {
 
   return (
     <Container>
-      {/* Single surface (avoid “nested card” feel) */}
-      <Card className="bg-white text-slate-900">
+      {/* MOBILE WIDTH FIX:
+          Container adds px-4; this makes the card full-bleed on mobile.
+          Keeps normal margins on sm+.
+      */}
+      <Card className="-mx-4 sm:mx-0 w-auto sm:w-full bg-white text-slate-900">
         <CardHeader
           title="Event Request Intake"
           subtitle="A structured intake form used to schedule candidate engagements reliably and transparently."
-          className="bg-white"
+          className="bg-white !px-4 sm:!px-6"
         />
-        <CardContent className="bg-white">
+        <CardContent className="bg-white !px-4 sm:!px-6">
           <form onSubmit={onSubmit} className="space-y-8 text-slate-900">
             <Stepper />
 
@@ -932,7 +928,11 @@ export default function EventRequestPage() {
                     label="Contact"
                     value={`${safeTrim(form.contactName)} • ${safeTrim(
                       form.contactEmail
-                    )}${safeTrim(form.contactPhone) ? ` • ${safeTrim(form.contactPhone)}` : ''}`}
+                    )}${
+                      safeTrim(form.contactPhone)
+                        ? ` • ${safeTrim(form.contactPhone)}`
+                        : ''
+                    }`}
                   />
                   <ReviewRow
                     label="Preferred contact"
@@ -947,7 +947,10 @@ export default function EventRequestPage() {
                         : form.eventType
                     }
                   />
-                  <ReviewRow label="Attendance" value={form.expectedAttendance} />
+                  <ReviewRow
+                    label="Attendance"
+                    value={form.expectedAttendance}
+                  />
                   <ReviewRow
                     label="Requested role"
                     value={form.requestedRole}
@@ -955,7 +958,9 @@ export default function EventRequestPage() {
                   <ReviewRow label="Media" value={form.mediaExpected} />
                   <ReviewRow
                     label="Start"
-                    value={`${form.startDateTime}${form.isTimeFlexible ? ' (flexible)' : ''}`}
+                    value={`${form.startDateTime}${
+                      form.isTimeFlexible ? ' (flexible)' : ''
+                    }`}
                   />
                   <ReviewRow
                     label="End"
@@ -993,7 +998,9 @@ export default function EventRequestPage() {
                   />
                   <ReviewRow
                     label="Consent"
-                    value={form.permissionToContact ? 'Confirmed' : 'Not confirmed'}
+                    value={
+                      form.permissionToContact ? 'Confirmed' : 'Not confirmed'
+                    }
                   />
                 </div>
 
