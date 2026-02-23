@@ -5,6 +5,7 @@
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
     "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "ajv-formats": "^3.0.1",
+    "resend": "^6.9.2"
   }
 }
