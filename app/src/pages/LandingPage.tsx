@@ -18,10 +18,23 @@ export default function LandingPage() {
             Choose the intake you need. Submissions create a tracking record and notify the team.
           </p>
 
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button onClick={() => nav('/event-request')}>Submit an Event Request</Button>
-            <Button variant="secondary" onClick={() => nav('/team-signup')}>
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Button onClick={() => nav('/event-request')}>
+              Submit an Event Request
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => nav('/team-signup')}
+            >
               Join a People Powered Team
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => nav('/live-contact')}
+            >
+              Live Contact (Field Entry)
             </Button>
           </div>
 
