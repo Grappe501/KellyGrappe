@@ -230,18 +230,25 @@ export default function EventRequestPage() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          step,
-          updatedAt: new Date().toISOString(),
-          data: form,
-        })
-      );
-    } catch {
-      // ignore quota errors
-    }
+    // IMPORTANT: Debounce draft saves.
+    // Writing to localStorage synchronously on every keystroke can cause
+    // "sticky key" / "one character at a time" input behavior on some devices.
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({
+            step,
+            updatedAt: new Date().toISOString(),
+            data: form,
+          })
+        );
+      } catch {
+        // ignore quota errors
+      }
+    }, 400);
+
+    return () => window.clearTimeout(t);
   }, [form, step]);
 
   function clearDraft() {
@@ -623,68 +630,38 @@ export default function EventRequestPage() {
                   <Input
                     id="eventTitle"
                     name="eventTitle"
-                    placeholder="Example: Bryant High School Basketball Game"
+                    placeholder="Example: Downtown Community Town Hall"
                     value={form.eventTitle}
                     onChange={(e) => update('eventTitle', e.target.value)}
                   />
                   <FieldHint id="eventTitle" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="eventType">Event type</Label>
-                    <Select
-                      id="eventType"
-                      name="eventType"
-                      value={form.eventType}
-                      onChange={(e) =>
-                        update(
-                          'eventType',
-                          e.target.value as FormState['eventType']
-                        )
-                      }
-                    >
-                      {EVENT_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="expectedAttendance">
-                      Estimated attendance
-                    </Label>
-                    <Select
-                      id="expectedAttendance"
-                      name="expectedAttendance"
-                      value={form.expectedAttendance}
-                      onChange={(e) =>
-                        update(
-                          'expectedAttendance',
-                          e.target.value as FormState['expectedAttendance']
-                        )
-                      }
-                    >
-                      <option value="1–10">1–10</option>
-                      <option value="11–25">11–25</option>
-                      <option value="26–50">26–50</option>
-                      <option value="51–100">51–100</option>
-                      <option value="100+">100+</option>
-                    </Select>
-                  </div>
+                <div>
+                  <Label htmlFor="eventType">Event type</Label>
+                  <Select
+                    id="eventType"
+                    name="eventType"
+                    value={form.eventType}
+                    onChange={(e) =>
+                      update('eventType', e.target.value as FormState['eventType'])
+                    }
+                  >
+                    {EVENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
 
                 {showOtherType ? (
                   <div>
-                    <Label htmlFor="eventTypeOther">
-                      Describe the event type
-                    </Label>
+                    <Label htmlFor="eventTypeOther">Describe the event</Label>
                     <Input
                       id="eventTypeOther"
                       name="eventTypeOther"
-                      placeholder="Example: Neighborhood association meeting"
+                      placeholder="What type of event is this?"
                       value={form.eventTypeOther}
                       onChange={(e) => update('eventTypeOther', e.target.value)}
                     />
@@ -693,40 +670,35 @@ export default function EventRequestPage() {
                 ) : null}
 
                 <div>
-                  <Label htmlFor="eventDescription">
-                    Event description (optional)
-                  </Label>
+                  <Label htmlFor="eventDescription">Event description (optional)</Label>
                   <Textarea
                     id="eventDescription"
                     name="eventDescription"
-                    placeholder="Anything that helps us plan: audience, agenda, accessibility, parking, security, special notes."
-                    rows={5}
+                    rows={4}
+                    placeholder="Anything we should know: schedule, audience, format, topics, hosts…"
                     value={form.eventDescription}
                     onChange={(e) => update('eventDescription', e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="requestedRole">Requested participation</Label>
+                  <Label htmlFor="expectedAttendance">Expected attendance</Label>
                   <Select
-                    id="requestedRole"
-                    name="requestedRole"
-                    value={form.requestedRole}
+                    id="expectedAttendance"
+                    name="expectedAttendance"
+                    value={form.expectedAttendance}
                     onChange={(e) =>
                       update(
-                        'requestedRole',
-                        e.target.value as FormState['requestedRole']
+                        'expectedAttendance',
+                        e.target.value as FormState['expectedAttendance']
                       )
                     }
                   >
-                    <option value="Attend and greet attendees">
-                      Attend and greet attendees
-                    </option>
-                    <option value="Speak briefly">Speak briefly</option>
-                    <option value="Featured speaker">Featured speaker</option>
-                    <option value="Private meeting">Private meeting</option>
-                    <option value="Fundraiser ask">Fundraiser ask</option>
-                    <option value="Not sure">Not sure</option>
+                    <option value="1–10">1–10</option>
+                    <option value="11–25">11–25</option>
+                    <option value="26–50">26–50</option>
+                    <option value="51–100">51–100</option>
+                    <option value="100+">100+</option>
                   </Select>
                 </div>
               </Section>
@@ -736,27 +708,23 @@ export default function EventRequestPage() {
             {step === 'SCHEDULE' ? (
               <Section
                 title="When & Where"
-                subtitle="Provide the best available information. If timing may change, mark it flexible."
+                subtitle="Give us the best available timing and location. We’ll follow up if anything needs clarifying."
               >
-                <div>
-                  <Label htmlFor="startDateTime">Event date & start time</Label>
-                  <Input
-                    id="startDateTime"
-                    name="startDateTime"
-                    type="datetime-local"
-                    value={form.startDateTime}
-                    onChange={(e) => update('startDateTime', e.target.value)}
-                  />
-                  <FieldHint id="startDateTime" />
-                  <HelpText>
-                    If you don’t know the exact time yet, choose your best
-                    estimate and check “Time is flexible.”
-                  </HelpText>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="endDateTime">End time (optional)</Label>
+                    <Label htmlFor="startDateTime">Start date & time</Label>
+                    <Input
+                      id="startDateTime"
+                      name="startDateTime"
+                      type="datetime-local"
+                      value={form.startDateTime}
+                      onChange={(e) => update('startDateTime', e.target.value)}
+                    />
+                    <FieldHint id="startDateTime" />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="endDateTime">End date & time (optional)</Label>
                     <Input
                       id="endDateTime"
                       name="endDateTime"
@@ -765,22 +733,22 @@ export default function EventRequestPage() {
                       onChange={(e) => update('endDateTime', e.target.value)}
                     />
                   </div>
+                </div>
 
-                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
-                    <input
-                      id="isTimeFlexible"
-                      name="isTimeFlexible"
-                      type="checkbox"
-                      className="mt-1 h-5 w-5 rounded-md"
-                      checked={form.isTimeFlexible}
-                      onChange={(e) => update('isTimeFlexible', e.target.checked)}
-                    />
-                    <div>
-                      <Label htmlFor="isTimeFlexible">Time is flexible</Label>
-                      <HelpText>
-                        Select this if the start time could change.
-                      </HelpText>
-                    </div>
+                <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
+                  <input
+                    id="isTimeFlexible"
+                    name="isTimeFlexible"
+                    type="checkbox"
+                    className="mt-1 h-5 w-5 rounded-md"
+                    checked={form.isTimeFlexible}
+                    onChange={(e) => update('isTimeFlexible', e.target.checked)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="isTimeFlexible">Timing is flexible</Label>
+                    <HelpText>
+                      Check this if the schedule can shift based on availability.
+                    </HelpText>
                   </div>
                 </div>
 
@@ -789,7 +757,7 @@ export default function EventRequestPage() {
                   <Input
                     id="venueName"
                     name="venueName"
-                    placeholder="Example: First Baptist Church"
+                    placeholder="Example: City Hall"
                     value={form.venueName}
                     onChange={(e) => update('venueName', e.target.value)}
                   />
@@ -800,6 +768,7 @@ export default function EventRequestPage() {
                   <Input
                     id="addressLine1"
                     name="addressLine1"
+                    placeholder="123 Main St"
                     value={form.addressLine1}
                     onChange={(e) => update('addressLine1', e.target.value)}
                   />
@@ -865,6 +834,30 @@ export default function EventRequestPage() {
                 title="Final Details"
                 subtitle="This helps triage requests and plan logistics."
               >
+                <div>
+                  <Label htmlFor="requestedRole">What role are you requesting?</Label>
+                  <Select
+                    id="requestedRole"
+                    name="requestedRole"
+                    value={form.requestedRole}
+                    onChange={(e) =>
+                      update(
+                        'requestedRole',
+                        e.target.value as FormState['requestedRole']
+                      )
+                    }
+                  >
+                    <option value="Attend and greet attendees">
+                      Attend and greet attendees
+                    </option>
+                    <option value="Speak briefly">Speak briefly</option>
+                    <option value="Featured speaker">Featured speaker</option>
+                    <option value="Private meeting">Private meeting</option>
+                    <option value="Fundraiser ask">Fundraiser ask</option>
+                    <option value="Not sure">Not sure</option>
+                  </Select>
+                </div>
+
                 <div>
                   <Label htmlFor="mediaExpected">Will media be present?</Label>
                   <Select

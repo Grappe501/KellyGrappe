@@ -125,10 +125,7 @@ export default function TeamSignupPage() {
     honeypot: '',
   });
 
-  function update<K extends keyof FormState>(
-    key: K,
-    value: FormState[K]
-  ) {
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setFieldErrors((prev) => {
       if (!prev[key as string]) return prev;
@@ -159,7 +156,7 @@ export default function TeamSignupPage() {
   /* -------------------- Draft Save (FIXED) -------------------- */
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       try {
         localStorage.setItem(
           DRAFT_KEY,
@@ -172,7 +169,7 @@ export default function TeamSignupPage() {
       } catch {}
     }, 400);
 
-    return () => clearTimeout(timeout);
+    return () => window.clearTimeout(timeout);
   }, [form, step]);
 
   function clearDraft() {
@@ -242,11 +239,12 @@ export default function TeamSignupPage() {
         />
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-6">
-
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
+                type="email"
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
               />
@@ -256,6 +254,7 @@ export default function TeamSignupPage() {
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
+                name="name"
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
               />
@@ -265,6 +264,7 @@ export default function TeamSignupPage() {
               <Label htmlFor="location">City / County</Label>
               <Input
                 id="location"
+                name="location"
                 value={form.location}
                 onChange={(e) => update('location', e.target.value)}
               />
@@ -272,15 +272,13 @@ export default function TeamSignupPage() {
 
             <div className="flex items-start gap-3">
               <input
+                id="permissionToContact"
+                name="permissionToContact"
                 type="checkbox"
                 checked={form.permissionToContact}
-                onChange={(e) =>
-                  update('permissionToContact', e.target.checked)
-                }
+                onChange={(e) => update('permissionToContact', e.target.checked)}
               />
-              <Label htmlFor="permissionToContact">
-                I agree to be contacted.
-              </Label>
+              <Label htmlFor="permissionToContact">I agree to be contacted.</Label>
             </div>
 
             {error && <ErrorText>{error}</ErrorText>}
