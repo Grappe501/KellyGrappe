@@ -11,20 +11,15 @@ type LiveContactFormState = {
   name: string;
   phone: string;
   email: string;
-
   facebookConnected: boolean;
   facebookProfileName: string;
-
   location: string;
   notes: string;
-
   permissionToContact: boolean;
-
-  // anti-spam
   honeypot: string;
 };
 
-const DRAFT_KEY = 'KG_LIVE_CONTACT_DRAFT_v1';
+const DRAFT_KEY = 'KG_LIVE_CONTACT_DRAFT_v3';
 const LIST_KEY = 'LIVE_CONTACTS_LIST_v1';
 
 function safeTrim(v: unknown) {
@@ -46,16 +41,9 @@ function nowIso() {
 
 export default function LiveContactPage() {
   const nav = useNavigate();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [requestId, setRequestId] = useState<string | null>(null);
-
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   const didHydrateDraft = useRef(false);
 
-  const [form, setForm] = useState<LiveContactFormState>(() => ({
+  const [form, setForm] = useState<LiveContactFormState>({
     name: '',
     phone: '',
     email: '',
@@ -65,7 +53,12 @@ export default function LiveContactPage() {
     notes: '',
     permissionToContact: true,
     honeypot: '',
-  }));
+  });
+
+  const [submitting, setSubmitting] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const hasAnyDirect = useMemo(() => {
     const hasPhone = safeTrim(form.phone) ? isPhoneLike(form.phone) : false;
@@ -80,7 +73,7 @@ export default function LiveContactPage() {
     if (form.facebookConnected && !safeTrim(form.facebookProfileName)) return false;
     if (!form.permissionToContact) return false;
     return true;
-  }, [form.name, form.email, form.facebookConnected, form.facebookProfileName, form.permissionToContact, hasAnyDirect]);
+  }, [form, hasAnyDirect]);
 
   function update<K extends keyof LiveContactFormState>(key: K, value: LiveContactFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -92,11 +85,12 @@ export default function LiveContactPage() {
     });
   }
 
-  /* ------------------------------- Drafts --------------------------------- */
+  /* ---------------- Draft Load ---------------- */
 
   useEffect(() => {
     if (didHydrateDraft.current) return;
     didHydrateDraft.current = true;
+
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -104,44 +98,42 @@ export default function LiveContactPage() {
       if (parsed?.data && typeof parsed.data === 'object') {
         setForm((prev) => ({ ...prev, ...parsed.data }));
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
+  /* ---------------- Draft Save (Debounced FIX) ---------------- */
+
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          updatedAt: nowIso(),
-          data: form,
-        })
-      );
-    } catch {
-      // ignore
-    }
+    const timeout = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({
+            updatedAt: nowIso(),
+            data: form,
+          })
+        );
+      } catch {}
+    }, 400);
+
+    return () => clearTimeout(timeout);
   }, [form]);
 
   function clearDraft() {
     try {
       localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
-
-  /* ----------------------------- Validation -------------------------------- */
 
   function validate() {
     const errs: Record<string, string> = {};
 
     if (!safeTrim(form.name)) errs.name = 'Name is required.';
     if (!hasAnyDirect) errs.phone = 'Phone or email is required.';
-    if (safeTrim(form.email) && !isEmailLike(form.email)) errs.email = 'Please enter a valid email address.';
-    if (safeTrim(form.phone) && !isPhoneLike(form.phone)) errs.phone = 'Please enter a valid phone number.';
-    if (form.facebookConnected && !safeTrim(form.facebookProfileName)) errs.facebookProfileName = 'Facebook profile name is required if connected.';
-    if (!form.permissionToContact) errs.permissionToContact = 'Consent is required to save this contact.';
+    if (safeTrim(form.email) && !isEmailLike(form.email))
+      errs.email = 'Please enter a valid email address.';
+    if (!form.permissionToContact)
+      errs.permissionToContact = 'Consent is required.';
 
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -150,10 +142,8 @@ export default function LiveContactPage() {
   function FieldHint({ id }: { id: string }) {
     const msg = fieldErrors[id];
     if (!msg) return null;
-    return <p className="mt-1 text-sm text-rose-600">{msg}</p>;
+    return <p className="mt-1 text-sm text-red-600">{msg}</p>;
   }
-
-  /* ------------------------------ Local List ------------------------------- */
 
   function appendToLocalList(entry: any) {
     try {
@@ -161,20 +151,15 @@ export default function LiveContactPage() {
       const arr = raw ? JSON.parse(raw) : [];
       const next = Array.isArray(arr) ? [entry, ...arr] : [entry];
       localStorage.setItem(LIST_KEY, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
-
-  /* -------------------------------- Submit -------------------------------- */
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setRequestId(null);
 
-    const ok = validate();
-    if (!ok) {
+    if (!validate()) {
       setError('Please fix the highlighted fields.');
       return;
     }
@@ -187,17 +172,16 @@ export default function LiveContactPage() {
         phone: safeTrim(form.phone) || undefined,
         email: safeTrim(form.email) || undefined,
         facebookConnected: form.facebookConnected,
-        facebookProfileName: form.facebookConnected ? safeTrim(form.facebookProfileName) : undefined,
+        facebookProfileName: form.facebookConnected
+          ? safeTrim(form.facebookProfileName)
+          : undefined,
         location: safeTrim(form.location) || undefined,
         notes: safeTrim(form.notes) || undefined,
-
-        // future-ready follow-up structure
         followUpStatus: 'NEW' as FollowUpStatus,
         followUpNotes: '',
         followUpCompletedAt: null,
         automationEligible: true,
         source: 'LIVE_FIELD',
-
         permissionToContact: form.permissionToContact,
       };
 
@@ -215,9 +199,7 @@ export default function LiveContactPage() {
         ...payloadData,
       });
 
-      // Clear for rapid next entry
-      setForm((prev) => ({
-        ...prev,
+      setForm({
         name: '',
         phone: '',
         email: '',
@@ -227,7 +209,8 @@ export default function LiveContactPage() {
         notes: '',
         permissionToContact: true,
         honeypot: '',
-      }));
+      });
+
       clearDraft();
     } catch (err: any) {
       setError(err?.message ?? 'Save failed. Please try again.');
@@ -238,191 +221,103 @@ export default function LiveContactPage() {
 
   return (
     <Container>
-      <Card className="bg-white text-slate-900">
-        <CardHeader
-          title="Live Contact"
-          subtitle="Quick field entry. Save a contact in 20 seconds and keep moving."
-          className="bg-white"
-        />
-        <CardContent className="bg-white">
-          <form onSubmit={onSubmit} className="space-y-6 text-slate-900">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="text-xs text-slate-600">
-                {requestId ? (
-                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                    Saved • ID {requestId}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
-                    Ready
-                  </span>
-                )}
-              </div>
+      <Card className="bg-white border border-slate-200 shadow-2xl">
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button type="button" variant="secondary" onClick={() => nav('/live-contacts')} className="w-full sm:w-auto">
-                  View Follow-ups
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => nav('/')} className="w-full sm:w-auto">
-                  Home
-                </Button>
-              </div>
-            </div>
+        <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white p-8 rounded-t-xl">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Live Contact Capture
+          </h1>
+          <p className="mt-2 text-sm opacity-90">
+            Every conversation matters. Capture it. Build momentum.
+          </p>
+        </div>
 
-            {/* Honeypot */}
-            <div className="hidden" aria-hidden="true">
-              <Label htmlFor="companyWebsite">Company Website</Label>
-              <Input
-                id="companyWebsite"
-                name="companyWebsite"
-                value={form.honeypot}
-                onChange={(e) => update('honeypot', e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-              />
+        <CardContent className="p-8 space-y-10">
+
+          {/* Status */}
+          <div className="flex justify-between items-center">
+            {requestId ? (
+              <div className="px-4 py-2 bg-green-100 border border-green-300 text-green-800 rounded-full text-sm font-semibold animate-pulse">
+                ✓ Saved — ID {requestId}
+              </div>
+            ) : (
+              <div className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-full text-sm font-semibold">
+                Ready to capture
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => nav('/live-contacts')}>
+                Follow-ups
+              </Button>
+              <Button variant="secondary" onClick={() => nav('/')}>
+                Home
+              </Button>
             </div>
+          </div>
+
+          <form onSubmit={onSubmit} className="space-y-8">
 
             <section className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold tracking-tight text-slate-900">Contact</h2>
-                <p className="text-sm text-slate-600">Name is required. Enter at least a phone number or an email.</p>
-              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Contact</h2>
 
               <div>
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" placeholder="Full name" value={form.name} onChange={(e) => update('name', e.target.value)} />
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" value={form.name} onChange={(e) => update('name', e.target.value)} />
                 <FieldHint id="name" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    placeholder="501-555-1234"
-                    value={form.phone}
-                    onChange={(e) => update('phone', e.target.value)}
-                    inputMode="tel"
-                  />
-                  <FieldHint id="phone" />
+                  <Input id="phone" value={form.phone} onChange={(e) => update('phone', e.target.value)} />
                 </div>
-
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="name@email.com"
-                    value={form.email}
-                    onChange={(e) => update('email', e.target.value)}
-                  />
-                  <FieldHint id="email" />
+                  <Input id="email" value={form.email} onChange={(e) => update('email', e.target.value)} />
                 </div>
               </div>
             </section>
 
             <section className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold tracking-tight text-slate-900">Social</h2>
-                <p className="text-sm text-slate-600">Optional — capture Facebook connection details for follow-up.</p>
-              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Notes</h2>
 
-              <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
-                <input
-                  id="facebookConnected"
-                  name="facebookConnected"
-                  type="checkbox"
-                  className="mt-1 h-5 w-5 rounded-md"
-                  checked={form.facebookConnected}
-                  onChange={(e) => update('facebookConnected', e.target.checked)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="facebookConnected">Connected on Facebook</Label>
-                  <HelpText>Check this if you’re already connected, or you plan to connect.</HelpText>
-                </div>
-              </div>
-
-              {form.facebookConnected ? (
-                <div>
-                  <Label htmlFor="facebookProfileName">Facebook profile name</Label>
-                  <Input
-                    id="facebookProfileName"
-                    name="facebookProfileName"
-                    placeholder="Example: John Smith"
-                    value={form.facebookProfileName}
-                    onChange={(e) => update('facebookProfileName', e.target.value)}
-                  />
-                  <FieldHint id="facebookProfileName" />
-                </div>
-              ) : null}
-            </section>
-
-            <section className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold tracking-tight text-slate-900">Context</h2>
-                <p className="text-sm text-slate-600">Where you met them and anything important to remember.</p>
+              <div>
+                <Label htmlFor="location">Location</Label>
+                <Input id="location" value={form.location} onChange={(e) => update('location', e.target.value)} />
               </div>
 
               <div>
-                <Label htmlFor="location">Location (optional)</Label>
-                <Input
-                  id="location"
-                  name="location"
-                  placeholder="Example: Benton County GOP dinner"
-                  value={form.location}
-                  onChange={(e) => update('location', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Notes (optional)</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  placeholder="Example: Interested in volunteering. Asked about voter ID. Wants follow-up next week."
-                  rows={5}
-                  value={form.notes}
-                  onChange={(e) => update('notes', e.target.value)}
-                />
+                <Label htmlFor="notes">Conversation Notes</Label>
+                <Textarea id="notes" rows={5} value={form.notes} onChange={(e) => update('notes', e.target.value)} />
               </div>
             </section>
 
-            <section className="space-y-3">
-              <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
+            <section className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 space-y-4">
+              <div className="flex items-start gap-3">
                 <input
-                  id="permissionToContact"
-                  name="permissionToContact"
                   type="checkbox"
-                  className="mt-1 h-5 w-5 rounded-md"
+                  className="mt-1 h-5 w-5 accent-indigo-600"
                   checked={form.permissionToContact}
                   onChange={(e) => update('permissionToContact', e.target.checked)}
                 />
-                <div className="space-y-1">
-                  <Label htmlFor="permissionToContact">
-                    I have permission to contact this person for campaign follow-up.
-                  </Label>
-                  <HelpText>Required to save this entry.</HelpText>
+                <div>
+                  <Label>I have permission to follow up.</Label>
                   <FieldHint id="permissionToContact" />
                 </div>
               </div>
 
-              {error ? <ErrorText>{error}</ErrorText> : null}
+              {error && <ErrorText>{error}</ErrorText>}
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button type="submit" disabled={submitting || !canSubmit} className="w-full sm:w-auto">
-                  {submitting ? 'Saving…' : 'Save Contact'}
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => nav('/live-contacts')} className="w-full sm:w-auto">
-                  Go to Follow-ups
-                </Button>
-              </div>
-
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Tip: after saving, the form clears automatically so you can enter the next contact immediately.
-              </p>
+              <Button
+                type="submit"
+                disabled={!canSubmit || submitting}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 text-lg rounded-xl shadow-lg transition-all"
+              >
+                {submitting ? 'Saving…' : 'Save & Keep Building'}
+              </Button>
             </section>
+
           </form>
         </CardContent>
       </Card>

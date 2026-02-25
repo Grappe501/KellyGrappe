@@ -8,7 +8,11 @@ import eventSchema from './eventRequests.schema.json';
 import teamSignupSchema from './teamSignup.schema.json';
 import liveContactSchema from './liveContact.schema.json';
 
-type ModuleId = 'MODULE_001_EVENT_REQUEST' | 'MODULE_002_TEAM_SIGNUP' | 'MODULE_003_LIVE_CONTACT';
+type ModuleId =
+  | 'MODULE_001_EVENT_REQUEST'
+  | 'MODULE_002_TEAM_SIGNUP'
+  | 'MODULE_003_LIVE_CONTACT';
+
 type EventData = Record<string, any>;
 
 const ajv = new Ajv({
@@ -21,6 +25,7 @@ addFormats(ajv);
 const validators: Record<ModuleId, ReturnType<typeof ajv.compile>> = {
   MODULE_001_EVENT_REQUEST: ajv.compile(eventSchema as any),
   MODULE_002_TEAM_SIGNUP: ajv.compile(teamSignupSchema as any),
+  MODULE_003_LIVE_CONTACT: ajv.compile(liveContactSchema as any),
 };
 
 /* -------------------------------------------------------------------------- */
@@ -66,7 +71,11 @@ async function logSubmission(_payload: unknown) {
   return true;
 }
 
-async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data: EventData }) {
+async function sendEmails(payload: {
+  requestId: string;
+  moduleId: ModuleId;
+  data: EventData;
+}) {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.EMAIL_TO;
   const from = process.env.EMAIL_FROM;
@@ -81,15 +90,14 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
 
   const replyTo = safe(data.contactEmail || data.email) || undefined;
 
-  // Basic subject routing
   const subject =
     moduleId === 'MODULE_001_EVENT_REQUEST'
-      ? `Event Request: ${safe(data.eventTitle)} — ${safe(data.city)}, ${safe(data.state)}`
+      ? `Event Request: ${safe(data.eventTitle)} — ${safe(data.city)}, ${safe(
+          data.state
+        )}`
       : moduleId === 'MODULE_002_TEAM_SIGNUP'
       ? `Volunteer Signup: ${safe(data.name)} — ${safe(data.location)}`
       : `Live Contact: ${safe(data.name)} — ${safe(data.location)}`;
-
-  /* ================= INTERNAL NOTIFICATION ================= */
 
   const internalHtml = (() => {
     if (moduleId === 'MODULE_001_EVENT_REQUEST') {
@@ -117,7 +125,9 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
         <p>
           <strong>Title:</strong> ${safe(data.eventTitle)}<br/>
           <strong>Type:</strong> ${safe(data.eventType)}${
-            data.eventType === 'Other' ? ` (${safe(data.eventTypeOther)})` : ''
+            data.eventType === 'Other'
+              ? ` (${safe(data.eventTypeOther)})`
+              : ''
           }<br/>
           <strong>Description:</strong> ${safe(data.eventDescription) || 'N/A'}<br/>
           <strong>Estimated Attendance:</strong> ${safe(data.expectedAttendance)}<br/>
@@ -138,42 +148,50 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
           <strong>Address:</strong> ${address}
         </p>
 
-        <p><strong>Consent Confirmed:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
+        <p><strong>Consent Confirmed:</strong> ${
+          data.permissionToContact ? 'Yes' : 'No'
+        }</p>
       `;
     }
 
     if (moduleId === 'MODULE_003_LIVE_CONTACT') {
-  return `
-    <h2>New Live Contact Captured</h2>
-    <p><strong>Reference ID:</strong> ${requestId}</p>
+      return `
+        <h2>New Live Contact Captured</h2>
+        <p><strong>Reference ID:</strong> ${requestId}</p>
 
-    <h3>Contact</h3>
-    <p>
-      <strong>Name:</strong> ${safe(data.name)}<br/>
-      <strong>Phone:</strong> ${safe(data.phone) || 'N/A'}<br/>
-      <strong>Email:</strong> ${safe(data.email) || 'N/A'}<br/>
-      <strong>Location:</strong> ${safe(data.location) || 'N/A'}
-    </p>
+        <h3>Contact</h3>
+        <p>
+          <strong>Name:</strong> ${safe(data.name)}<br/>
+          <strong>Phone:</strong> ${safe(data.phone) || 'N/A'}<br/>
+          <strong>Email:</strong> ${safe(data.email) || 'N/A'}<br/>
+          <strong>Location:</strong> ${safe(data.location) || 'N/A'}
+        </p>
 
-    <h3>Facebook</h3>
-    <p>
-      <strong>Connected:</strong> ${data.facebookConnected ? 'Yes' : 'No'}<br/>
-      <strong>Profile name:</strong> ${safe(data.facebookProfileName) || 'N/A'}
-    </p>
+        <h3>Facebook</h3>
+        <p>
+          <strong>Connected:</strong> ${
+            data.facebookConnected ? 'Yes' : 'No'
+          }<br/>
+          <strong>Profile name:</strong> ${safe(data.facebookProfileName) || 'N/A'}
+        </p>
 
-    <h3>Notes</h3>
-    <p>${safe(data.notes) || 'N/A'}</p>
+        <h3>Notes</h3>
+        <p>${safe(data.notes) || 'N/A'}</p>
 
-    <h3>Follow-up</h3>
-    <p>
-      <strong>Status:</strong> ${safe(data.followUpStatus) || 'NEW'}<br/>
-      <strong>Automation eligible:</strong> ${data.automationEligible ? 'Yes' : 'No'}<br/>
-      <strong>Source:</strong> ${safe(data.source) || 'LIVE_FIELD'}
-    </p>
+        <h3>Follow-up</h3>
+        <p>
+          <strong>Status:</strong> ${safe(data.followUpStatus) || 'NEW'}<br/>
+          <strong>Automation eligible:</strong> ${
+            data.automationEligible ? 'Yes' : 'No'
+          }<br/>
+          <strong>Source:</strong> ${safe(data.source) || 'LIVE_FIELD'}
+        </p>
 
-    <p><strong>Permission to contact:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
-  `;
-}
+        <p><strong>Permission to contact:</strong> ${
+          data.permissionToContact ? 'Yes' : 'No'
+        }</p>
+      `;
+    }
 
     // MODULE_002_TEAM_SIGNUP
     const arrays: Array<[string, unknown]> = [
@@ -213,7 +231,9 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
       <h3>Availability</h3>
       <p>
         <strong>Hours per week:</strong> ${safe(data.hoursPerWeek)}${
-          safe(data.hoursPerWeek) === 'Other' ? ` (${safe(data.hoursPerWeekOther)})` : ''
+          safe(data.hoursPerWeek) === 'Other'
+            ? ` (${safe(data.hoursPerWeekOther)})`
+            : ''
         }
       </p>
 
@@ -223,11 +243,17 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
       <h3>Other</h3>
       <p>
         <strong>Stay in touch:</strong> ${data.stayInTouch ? 'Yes' : 'No'}<br/>
-        <strong>Other contribution:</strong> ${safe(data.otherContribution) || 'N/A'}<br/>
-        <strong>Event invite details:</strong> ${safe(data.eventInviteDetails) || 'N/A'}
+        <strong>Other contribution:</strong> ${
+          safe(data.otherContribution) || 'N/A'
+        }<br/>
+        <strong>Event invite details:</strong> ${
+          safe(data.eventInviteDetails) || 'N/A'
+        }
       </p>
 
-      <p><strong>Consent Confirmed:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
+      <p><strong>Consent Confirmed:</strong> ${
+        data.permissionToContact ? 'Yes' : 'No'
+      }</p>
     `;
   })();
 
@@ -247,8 +273,7 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
     console.error('[email] Internal send crash:', err);
   }
 
-  /* ================= CONFIRMATION TO SUBMITTER ================= */
-
+  // No confirmation emails for live-contact (field capture)
   const recipient = safe(data.contactEmail || data.email);
   if (recipient && moduleId !== 'MODULE_003_LIVE_CONTACT') {
     const confirmationSubject =
@@ -278,15 +303,11 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
             ${address}
           </p>
 
-          <p>
-            Our team will review the request and follow up as soon as possible.
-          </p>
+          <p>Our team will review the request and follow up as soon as possible.</p>
 
           <p>Reference ID: <strong>${requestId}</strong></p>
 
-          <p>
-            Kelly Grappe for Arkansas Secretary of State
-          </p>
+          <p>Kelly Grappe for Arkansas Secretary of State</p>
         `;
       }
 
@@ -294,15 +315,11 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
         <h2>Thank You for Signing Up</h2>
         <p>Hi ${safe(data.name)},</p>
 
-        <p>
-          We received your volunteer signup. Someone from the team will follow up with next steps.
-        </p>
+        <p>We received your volunteer signup. Someone from the team will follow up with next steps.</p>
 
         <p>Reference ID: <strong>${requestId}</strong></p>
 
-        <p>
-          Kelly Grappe for Arkansas Secretary of State
-        </p>
+        <p>Kelly Grappe for Arkansas Secretary of State</p>
       `;
     })();
 
@@ -358,7 +375,6 @@ export const handler: Handler = async (event) => {
     return json(200, { ok: true, requestId: randomUUID() });
   }
 
-  // Normalize module-specific date fields only
   if (moduleId === 'MODULE_001_EVENT_REQUEST') {
     data.startDateTime = normalizeDate(data.startDateTime);
     if (data.endDateTime) data.endDateTime = normalizeDate(data.endDateTime);
