@@ -5,6 +5,7 @@ import TeamSignupPage from './modules/teamSignup/TeamSignupPage';
 import ThankYouPage from './pages/ThankYouPage';
 import LiveContactPage from './modules/liveContact/LiveContactPage';
 import LiveContactsListPage from './modules/liveContact/LiveContactsListPage';
+import BusinessCardScanPage from './modules/businessCardScan/BusinessCardScanPage';
 
 export default function App() {
   return (
@@ -16,6 +17,9 @@ export default function App() {
 
       <Route path="/live-contact" element={<LiveContactPage />} />
       <Route path="/live-contacts" element={<LiveContactsListPage />} />
+
+      {/* New Scanner Route */}
+      <Route path="/business-card-scan" element={<BusinessCardScanPage />} />
     </Routes>
   );
 }
