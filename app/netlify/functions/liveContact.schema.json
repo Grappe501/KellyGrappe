@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MODULE_003_LIVE_CONTACT",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "phone": {
+      "type": "string",
+      "minLength": 7,
+      "maxLength": 30
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 254
+    },
+    "facebookConnected": {
+      "type": "boolean"
+    },
+    "facebookProfileName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "location": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "followUpStatus": {
+      "type": "string",
+      "enum": [
+        "NEW",
+        "IN_PROGRESS",
+        "COMPLETED"
+      ]
+    },
+    "followUpNotes": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "followUpCompletedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "automationEligible": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "permissionToContact": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "facebookConnected",
+    "permissionToContact"
+  ],
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "required": [
+            "phone"
+          ]
+        },
+        {
+          "required": [
+            "email"
+          ]
+        }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "facebookConnected": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "facebookProfileName"
+        ]
+      }
+    }
+  ]
+}

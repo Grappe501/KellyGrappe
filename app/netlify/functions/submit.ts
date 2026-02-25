@@ -6,8 +6,9 @@ import { Resend } from 'resend';
 
 import eventSchema from './eventRequests.schema.json';
 import teamSignupSchema from './teamSignup.schema.json';
+import liveContactSchema from './liveContact.schema.json';
 
-type ModuleId = 'MODULE_001_EVENT_REQUEST' | 'MODULE_002_TEAM_SIGNUP';
+type ModuleId = 'MODULE_001_EVENT_REQUEST' | 'MODULE_002_TEAM_SIGNUP' | 'MODULE_003_LIVE_CONTACT';
 type EventData = Record<string, any>;
 
 const ajv = new Ajv({
@@ -84,7 +85,9 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
   const subject =
     moduleId === 'MODULE_001_EVENT_REQUEST'
       ? `Event Request: ${safe(data.eventTitle)} — ${safe(data.city)}, ${safe(data.state)}`
-      : `Volunteer Signup: ${safe(data.name)} — ${safe(data.location)}`;
+      : moduleId === 'MODULE_002_TEAM_SIGNUP'
+      ? `Volunteer Signup: ${safe(data.name)} — ${safe(data.location)}`
+      : `Live Contact: ${safe(data.name)} — ${safe(data.location)}`;
 
   /* ================= INTERNAL NOTIFICATION ================= */
 
@@ -138,6 +141,39 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
         <p><strong>Consent Confirmed:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
       `;
     }
+
+    if (moduleId === 'MODULE_003_LIVE_CONTACT') {
+  return `
+    <h2>New Live Contact Captured</h2>
+    <p><strong>Reference ID:</strong> ${requestId}</p>
+
+    <h3>Contact</h3>
+    <p>
+      <strong>Name:</strong> ${safe(data.name)}<br/>
+      <strong>Phone:</strong> ${safe(data.phone) || 'N/A'}<br/>
+      <strong>Email:</strong> ${safe(data.email) || 'N/A'}<br/>
+      <strong>Location:</strong> ${safe(data.location) || 'N/A'}
+    </p>
+
+    <h3>Facebook</h3>
+    <p>
+      <strong>Connected:</strong> ${data.facebookConnected ? 'Yes' : 'No'}<br/>
+      <strong>Profile name:</strong> ${safe(data.facebookProfileName) || 'N/A'}
+    </p>
+
+    <h3>Notes</h3>
+    <p>${safe(data.notes) || 'N/A'}</p>
+
+    <h3>Follow-up</h3>
+    <p>
+      <strong>Status:</strong> ${safe(data.followUpStatus) || 'NEW'}<br/>
+      <strong>Automation eligible:</strong> ${data.automationEligible ? 'Yes' : 'No'}<br/>
+      <strong>Source:</strong> ${safe(data.source) || 'LIVE_FIELD'}
+    </p>
+
+    <p><strong>Permission to contact:</strong> ${data.permissionToContact ? 'Yes' : 'No'}</p>
+  `;
+}
 
     // MODULE_002_TEAM_SIGNUP
     const arrays: Array<[string, unknown]> = [
@@ -214,7 +250,7 @@ async function sendEmails(payload: { requestId: string; moduleId: ModuleId; data
   /* ================= CONFIRMATION TO SUBMITTER ================= */
 
   const recipient = safe(data.contactEmail || data.email);
-  if (recipient) {
+  if (recipient && moduleId !== 'MODULE_003_LIVE_CONTACT') {
     const confirmationSubject =
       moduleId === 'MODULE_001_EVENT_REQUEST'
         ? 'Your event request has been received'
