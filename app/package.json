@@ -12,6 +12,7 @@
   "dependencies": {
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
+    "openai": "^6.25.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
