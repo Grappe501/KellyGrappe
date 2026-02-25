@@ -244,125 +244,159 @@ export default function LiveContactPage() {
 
   return (
     <Container>
-      <Card>
-        <CardHeader
-          title="Live Contact"
-          subtitle="Fast field entry. Stored in the campaign contact engine."
-        />
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-6">
+      <div className="space-y-4">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={form.name}
-                  onChange={(e) => update('name', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="location">City / County</Label>
-                <Input
-                  id="location"
-                  value={form.location}
-                  onChange={(e) => update('location', e.target.value)}
-                />
-              </div>
+        {/* Scanner Shortcut */}
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-slate-900">
+              Have a business card?
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(e) => update('phone', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => update('email', e.target.value)}
-                />
-                {!emailValid ? <ErrorText>Invalid email.</ErrorText> : null}
-              </div>
+            <div className="text-xs text-slate-600">
+              Use the AI scanner to auto-extract details instead of typing.
             </div>
+          </div>
 
-            {/* FACEBOOK SECTION */}
+          <Button
+            type="button"
+            onClick={() => nav('/business-card-scan')}
+          >
+            Open Business Card Scanner
+          </Button>
+        </div>
 
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-4">
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={form.facebookConnected}
-                  onChange={(e) =>
-                    update('facebookConnected', e.target.checked)
-                  }
-                />
+        <Card>
+          <CardHeader
+            title="Live Contact Entry"
+            subtitle="Fast field entry. Stored in the campaign contact engine."
+          />
+
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-6">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>Connected on Facebook</Label>
-                  <HelpText>
-                    Check if you are connected or exchanged Facebook info.
-                  </HelpText>
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={form.name}
+                    onChange={(e) => update('name', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="location">City / County</Label>
+                  <Input
+                    id="location"
+                    value={form.location}
+                    onChange={(e) => update('location', e.target.value)}
+                  />
                 </div>
               </div>
 
-              {form.facebookConnected && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Facebook Profile Name</Label>
-                    <Input
-                      value={form.facebookProfileName}
-                      onChange={(e) =>
-                        update('facebookProfileName', e.target.value)
-                      }
-                      placeholder="Exact display name"
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={form.phone}
+                    onChange={(e) => update('phone', e.target.value)}
+                  />
+                </div>
 
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => update('email', e.target.value)}
+                  />
+                  {!emailValid ? <ErrorText>Invalid email.</ErrorText> : null}
+                </div>
+              </div>
+
+              {/* FACEBOOK SECTION */}
+
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="facebookConnected"
+                    type="checkbox"
+                    checked={form.facebookConnected}
+                    onChange={(e) =>
+                      update('facebookConnected', e.target.checked)
+                    }
+                  />
                   <div>
-                    <Label>Facebook Handle</Label>
-                    <Input
-                      value={form.facebookHandle}
-                      onChange={(e) =>
-                        update('facebookHandle', e.target.value)
-                      }
-                      placeholder="facebook.com/username"
-                    />
+                    <Label htmlFor="facebookConnected">
+                      Connected on Facebook
+                    </Label>
+                    <HelpText>
+                      Check if you are connected or exchanged Facebook info.
+                    </HelpText>
                   </div>
                 </div>
-              )}
-            </div>
 
-            <div>
-              <Label>Conversation Notes</Label>
-              <Textarea
-                rows={4}
-                value={form.notes}
-                onChange={(e) => update('notes', e.target.value)}
-              />
-            </div>
+                {form.facebookConnected && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="facebookProfileName">
+                        Facebook Profile Name
+                      </Label>
+                      <Input
+                        id="facebookProfileName"
+                        value={form.facebookProfileName}
+                        onChange={(e) =>
+                          update('facebookProfileName', e.target.value)
+                        }
+                        placeholder="Exact display name"
+                      />
+                    </div>
 
-            {error ? <ErrorText>{error}</ErrorText> : null}
+                    <div>
+                      <Label htmlFor="facebookHandle">
+                        Facebook Handle
+                      </Label>
+                      <Input
+                        id="facebookHandle"
+                        value={form.facebookHandle}
+                        onChange={(e) =>
+                          update('facebookHandle', e.target.value)
+                        }
+                        placeholder="facebook.com/username"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            <div className="flex justify-between">
-              <Button type="button" variant="secondary" onClick={() => nav('/')}>
-                Back
-              </Button>
+              <div>
+                <Label htmlFor="notes">Conversation Notes</Label>
+                <Textarea
+                  id="notes"
+                  rows={4}
+                  value={form.notes}
+                  onChange={(e) => update('notes', e.target.value)}
+                />
+              </div>
 
-              <Button type="submit" disabled={submitting}>
-                {submitting ? 'Saving…' : 'Save Contact'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              {error ? <ErrorText>{error}</ErrorText> : null}
+
+              <div className="flex justify-between">
+                <Button type="button" variant="secondary" onClick={() => nav('/')}>
+                  Back
+                </Button>
+
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save Contact'}
+                </Button>
+              </div>
+
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </Container>
   );
 }
