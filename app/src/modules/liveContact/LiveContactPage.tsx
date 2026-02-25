@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Container from '../../shared/components/Container';
-import { Card, CardHeader, CardContent } from '../../shared/components/Card';
-import { Button, ErrorText, HelpText, Input, Label, Textarea } from '../../shared/components/FormControls';
+import { Card, CardContent } from '../../shared/components/Card';
+import { Button, ErrorText, Input, Label, Textarea } from '../../shared/components/FormControls';
 import { submitModule } from '../../shared/utils/apiClient';
 
 type FollowUpStatus = 'NEW' | 'IN_PROGRESS' | 'COMPLETED';
@@ -70,7 +70,6 @@ export default function LiveContactPage() {
     if (!safeTrim(form.name)) return false;
     if (!hasAnyDirect) return false;
     if (safeTrim(form.email) && !isEmailLike(form.email)) return false;
-    if (form.facebookConnected && !safeTrim(form.facebookProfileName)) return false;
     if (!form.permissionToContact) return false;
     return true;
   }, [form, hasAnyDirect]);
@@ -85,12 +84,9 @@ export default function LiveContactPage() {
     });
   }
 
-  /* ---------------- Draft Load ---------------- */
-
   useEffect(() => {
     if (didHydrateDraft.current) return;
     didHydrateDraft.current = true;
-
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -100,8 +96,6 @@ export default function LiveContactPage() {
       }
     } catch {}
   }, []);
-
-  /* ---------------- Draft Save (Debounced FIX) ---------------- */
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -127,7 +121,6 @@ export default function LiveContactPage() {
 
   function validate() {
     const errs: Record<string, string> = {};
-
     if (!safeTrim(form.name)) errs.name = 'Name is required.';
     if (!hasAnyDirect) errs.phone = 'Phone or email is required.';
     if (safeTrim(form.email) && !isEmailLike(form.email))
@@ -171,10 +164,6 @@ export default function LiveContactPage() {
         name: safeTrim(form.name),
         phone: safeTrim(form.phone) || undefined,
         email: safeTrim(form.email) || undefined,
-        facebookConnected: form.facebookConnected,
-        facebookProfileName: form.facebookConnected
-          ? safeTrim(form.facebookProfileName)
-          : undefined,
         location: safeTrim(form.location) || undefined,
         notes: safeTrim(form.notes) || undefined,
         followUpStatus: 'NEW' as FollowUpStatus,
@@ -221,9 +210,9 @@ export default function LiveContactPage() {
 
   return (
     <Container>
-      <Card className="bg-white border border-slate-200 shadow-2xl">
+      <Card className="bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden">
 
-        <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white p-8 rounded-t-xl">
+        <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white p-8">
           <h1 className="text-2xl font-bold tracking-tight">
             Live Contact Capture
           </h1>
@@ -234,7 +223,6 @@ export default function LiveContactPage() {
 
         <CardContent className="p-8 space-y-10">
 
-          {/* Status */}
           <div className="flex justify-between items-center">
             {requestId ? (
               <div className="px-4 py-2 bg-green-100 border border-green-300 text-green-800 rounded-full text-sm font-semibold animate-pulse">
@@ -296,13 +284,16 @@ export default function LiveContactPage() {
             <section className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 space-y-4">
               <div className="flex items-start gap-3">
                 <input
+                  id="permissionToContact"
                   type="checkbox"
                   className="mt-1 h-5 w-5 accent-indigo-600"
                   checked={form.permissionToContact}
                   onChange={(e) => update('permissionToContact', e.target.checked)}
                 />
                 <div>
-                  <Label>I have permission to follow up.</Label>
+                  <Label htmlFor="permissionToContact">
+                    I have permission to follow up.
+                  </Label>
                   <FieldHint id="permissionToContact" />
                 </div>
               </div>
