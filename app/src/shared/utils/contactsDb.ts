@@ -117,7 +117,7 @@ export type LiveFollowUp = {
 
 type DbName = 'kg_sos_ops_db';
 const DB_NAME: DbName = 'kg_sos_ops_db';
-const DB_VERSION = 2; // bump for non-destructive schema evolution
+const DB_VERSION = 2; // bump when you add indexes or change keyPaths
 
 const STORE_CONTACTS = 'contacts';
 const STORE_ORIGINS = 'contact_origins';
@@ -126,17 +126,19 @@ const STORE_VOL_INTERESTS = 'volunteer_interests';
 const STORE_EVENT_LEADS = 'event_leads';
 const STORE_LIVE_FOLLOWUPS = 'live_followups';
 
+/* --------------------------------- UTILS -------------------------------- */
+
 function nowIso() {
   return new Date().toISOString();
 }
 
-function safeTrim(v: unknown) {
+function safeTrim(v: unknown): string {
   return (v ?? '').toString().trim();
 }
 
-function normalizePhone(raw: string) {
-  const digits = raw.replace(/\D/g, '');
-  return digits;
+function normalizePhone(raw: string): string {
+  // Keep only digits. (We store normalized digits preferred)
+  return safeTrim(raw).replace(/\D/g, '');
 }
 
 function uuid() {
@@ -165,15 +167,24 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 async function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  // Protect against SSR or environments without IndexedDB
+  if (typeof indexedDB === 'undefined') {
+    throw new Error('IndexedDB is not available in this environment.');
+  }
+
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
     req.onupgradeneeded = () => {
       const db = req.result;
 
       // NOTE: adding new optional fields does NOT require rebuilding object stores.
-      // We still bump DB_VERSION to allow forward evolutions and any future indexes.
+      // Bump DB_VERSION if you add indexes or change keyPaths.
 
       if (!db.objectStoreNames.contains(STORE_CONTACTS)) {
         const s = db.createObjectStore(STORE_CONTACTS, { keyPath: 'id' });
@@ -218,7 +229,18 @@ async function openDb(): Promise<IDBDatabase> {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () =>
       reject(req.error ?? new Error('Failed to open IndexedDB'));
+    req.onblocked = () => {
+      // Another tab may be holding the DB open during upgrade
+      // Don’t reject—Netlify build doesn’t run this; users will only see it in-browser.
+      // Still, keep a clear message for debugging.
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[contactsDb] IndexedDB open blocked. Close other tabs using the app and retry.'
+      );
+    };
   });
+
+  return dbPromise;
 }
 
 /* ------------------------------- CONTACTS ------------------------------- */
@@ -231,27 +253,29 @@ async function findContactByEmailOrPhone(
   const tx = db.transaction(STORE_CONTACTS, 'readonly');
   const store = tx.objectStore(STORE_CONTACTS);
 
-  const e = safeTrim(email).toLowerCase();
-  const p = safeTrim(phone);
+  try {
+    const e = safeTrim(email).toLowerCase();
+    const p = safeTrim(phone);
 
-  // Try email first
-  if (e) {
-    const idx = store.index('email');
-    const req = idx.getAll(e);
-    const hits = await reqToPromise(req);
-    if (hits && hits.length > 0) return hits[0] as Contact;
+    // Try email first
+    if (e) {
+      const idx = store.index('email');
+      const hits = (await reqToPromise(idx.getAll(e))) as Contact[];
+      if (hits?.length) return hits[0] ?? null;
+    }
+
+    // Then phone
+    if (p) {
+      const idx = store.index('phone');
+      const hits = (await reqToPromise(idx.getAll(p))) as Contact[];
+      if (hits?.length) return hits[0] ?? null;
+    }
+
+    return null;
+  } finally {
+    // Always allow the transaction to finish cleanly
+    await txDone(tx).catch(() => {});
   }
-
-  // Then phone
-  if (p) {
-    const idx = store.index('phone');
-    const req = idx.getAll(p);
-    const hits = await reqToPromise(req);
-    if (hits && hits.length > 0) return hits[0] as Contact;
-  }
-
-  await txDone(tx);
-  return null;
 }
 
 /**
@@ -267,7 +291,10 @@ export async function upsertContact(
   const db = await openDb();
 
   const email = safeTrim(input.email).toLowerCase() || undefined;
-  const phone = safeTrim(input.phone) ? normalizePhone(input.phone) : undefined;
+
+  // IMPORTANT: avoid passing string|undefined to normalizePhone (TypeScript strict build)
+  const phoneRaw = safeTrim(input.phone);
+  const phone = phoneRaw ? normalizePhone(phoneRaw) : undefined;
 
   const existing = await findContactByEmailOrPhone(db, email, phone);
 
@@ -284,9 +311,11 @@ export async function upsertContact(
   const next: Contact = {
     ...base,
     updatedAt: nowIso(),
+
     fullName: safeTrim(input.fullName) || base.fullName,
     email: email ?? base.email,
     phone: phone ?? base.phone,
+
     city: safeTrim(input.city) || base.city,
     county: safeTrim(input.county) || base.county,
     state: safeTrim(input.state) || base.state || 'AR',
@@ -303,10 +332,14 @@ export async function upsertContact(
   };
 
   const tx = db.transaction(STORE_CONTACTS, 'readwrite');
-  tx.objectStore(STORE_CONTACTS).put(next);
-  await txDone(tx);
-
-  return next;
+  try {
+    tx.objectStore(STORE_CONTACTS).put(next);
+    await txDone(tx);
+    return next;
+  } catch (e: any) {
+    // Make failures readable in the UI
+    throw new Error(e?.message ?? 'Failed to save contact.');
+  }
 }
 
 /* ------------------------------- ORIGINS -------------------------------- */
@@ -332,10 +365,13 @@ export async function addOrigin(params: {
   };
 
   const tx = db.transaction(STORE_ORIGINS, 'readwrite');
-  tx.objectStore(STORE_ORIGINS).add(origin);
-  await txDone(tx);
-
-  return origin;
+  try {
+    tx.objectStore(STORE_ORIGINS).add(origin);
+    await txDone(tx);
+    return origin;
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to add origin log.');
+  }
 }
 
 /* -------------------------- VOLUNTEER PROFILES -------------------------- */
@@ -346,10 +382,13 @@ export async function upsertVolunteerProfile(
   const db = await openDb();
 
   const tx = db.transaction(STORE_VOL_PROFILES, 'readwrite');
-  tx.objectStore(STORE_VOL_PROFILES).put(profile);
-  await txDone(tx);
-
-  return profile;
+  try {
+    tx.objectStore(STORE_VOL_PROFILES).put(profile);
+    await txDone(tx);
+    return profile;
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to save volunteer profile.');
+  }
 }
 
 export async function replaceVolunteerInterests(params: {
@@ -362,29 +401,36 @@ export async function replaceVolunteerInterests(params: {
   const store = tx.objectStore(STORE_VOL_INTERESTS);
   const index = store.index('contactId');
 
-  // delete all existing for contact
-  const existing = await reqToPromise(index.getAll(params.contactId));
-  for (const row of existing as VolunteerInterest[]) {
-    store.delete(row.id);
+  try {
+    // delete all existing for contact
+    const existing = (await reqToPromise(
+      index.getAll(params.contactId)
+    )) as VolunteerInterest[];
+
+    for (const row of existing || []) {
+      store.delete(row.id);
+    }
+
+    const createdAt = nowIso();
+    for (const it of params.interests) {
+      const teamKey = safeTrim(it.teamKey);
+      const roleLabel = safeTrim(it.roleLabel);
+      if (!teamKey || !roleLabel) continue;
+
+      const row: VolunteerInterest = {
+        id: uuid(),
+        contactId: params.contactId,
+        teamKey,
+        roleLabel,
+        createdAt,
+      };
+      store.add(row);
+    }
+
+    await txDone(tx);
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to replace volunteer interests.');
   }
-
-  const createdAt = nowIso();
-  for (const it of params.interests) {
-    const teamKey = safeTrim(it.teamKey);
-    const roleLabel = safeTrim(it.roleLabel);
-    if (!teamKey || !roleLabel) continue;
-
-    const row: VolunteerInterest = {
-      id: uuid(),
-      contactId: params.contactId,
-      teamKey,
-      roleLabel,
-      createdAt,
-    };
-    store.add(row);
-  }
-
-  await txDone(tx);
 }
 
 /* ------------------------------- EVENT LEADS ---------------------------- */
@@ -399,17 +445,20 @@ export async function addEventLead(params: {
   const lead: EventLead = {
     id: uuid(),
     contactId: params.contactId,
-    eventLeadText: params.eventLeadText,
-    parsedCounty: params.parsedCounty,
+    eventLeadText: safeTrim(params.eventLeadText),
+    parsedCounty: safeTrim(params.parsedCounty) || undefined,
     status: 'NEW',
     createdAt: nowIso(),
   };
 
   const tx = db.transaction(STORE_EVENT_LEADS, 'readwrite');
-  tx.objectStore(STORE_EVENT_LEADS).add(lead);
-  await txDone(tx);
-
-  return lead;
+  try {
+    tx.objectStore(STORE_EVENT_LEADS).add(lead);
+    await txDone(tx);
+    return lead;
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to add event lead.');
+  }
 }
 
 /* ---------------------------- LIVE FOLLOW-UPS --------------------------- */
@@ -426,10 +475,13 @@ export async function addLiveFollowUp(
   };
 
   const tx = db.transaction(STORE_LIVE_FOLLOWUPS, 'readwrite');
-  tx.objectStore(STORE_LIVE_FOLLOWUPS).add(row);
-  await txDone(tx);
-
-  return row;
+  try {
+    tx.objectStore(STORE_LIVE_FOLLOWUPS).add(row);
+    await txDone(tx);
+    return row;
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to add live follow-up.');
+  }
 }
 
 export async function updateLiveFollowUp(
@@ -440,16 +492,21 @@ export async function updateLiveFollowUp(
   const tx = db.transaction(STORE_LIVE_FOLLOWUPS, 'readwrite');
   const store = tx.objectStore(STORE_LIVE_FOLLOWUPS);
 
-  const existing = (await reqToPromise(store.get(id))) as
-    | LiveFollowUp
-    | undefined;
-  if (!existing) {
-    await txDone(tx);
-    return;
-  }
+  try {
+    const existing = (await reqToPromise(store.get(id))) as
+      | LiveFollowUp
+      | undefined;
 
-  store.put({ ...existing, ...patch });
-  await txDone(tx);
+    if (!existing) {
+      await txDone(tx);
+      return;
+    }
+
+    store.put({ ...existing, ...patch });
+    await txDone(tx);
+  } catch (e: any) {
+    throw new Error(e?.message ?? 'Failed to update live follow-up.');
+  }
 }
 
 export async function listLiveFollowUps(): Promise<LiveFollowUp[]> {
@@ -457,11 +514,17 @@ export async function listLiveFollowUps(): Promise<LiveFollowUp[]> {
   const tx = db.transaction(STORE_LIVE_FOLLOWUPS, 'readonly');
   const store = tx.objectStore(STORE_LIVE_FOLLOWUPS);
 
-  const all = (await reqToPromise(store.getAll())) as LiveFollowUp[];
-  await txDone(tx);
+  try {
+    const all = (await reqToPromise(store.getAll())) as LiveFollowUp[];
+    await txDone(tx);
 
-  // newest first
-  return (all || []).sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+    // newest first
+    return (all || []).sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+  } catch (e: any) {
+    // Ensure we don't leak an unfinished tx if something throws
+    await txDone(tx).catch(() => {});
+    throw new Error(e?.message ?? 'Failed to list live follow-ups.');
+  }
 }
 
 /* --------------------------- UTILS FOR MODULES -------------------------- */
