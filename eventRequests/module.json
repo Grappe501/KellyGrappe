@@ -1,0 +1,8 @@
+{
+  "moduleId": "MODULE_001_EVENT_REQUEST",
+  "route": "/event-request",
+  "title": "Invite Kelly to Your Event",
+  "description": "Submit an event request for Kelly to attend in your community.",
+  "version": "1.0.0",
+  "status": "active"
+}
