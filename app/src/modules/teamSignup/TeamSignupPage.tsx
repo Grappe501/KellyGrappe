@@ -12,6 +12,7 @@ import {
   Textarea,
 } from '../../shared/components/FormControls';
 import { submitModule } from '../../shared/utils/apiClient';
+import { processIntake } from '../../shared/utils/intakePipeline';
 
 type HoursPerWeek =
   | '1-2 hours'
@@ -85,6 +86,30 @@ function hasAnySelection(form: FormState) {
     form.socialMediaStorytellingTeam,
   ];
   return arrays.some((a) => a.length > 0);
+}
+
+function buildVolunteerInterests(form: FormState): Array<{ teamKey: string; roleLabel: string }> {
+  const pairs: Array<[string, string[]]> = [
+    ['CREATIVE_DIGITAL', form.creativeDigitalTeam],
+    ['COMMUNICATIONS_PR', form.communicationsPRTeam],
+    ['CONSTITUENT_SERVICES', form.constituentServicesTeam],
+    ['DEMOCRACY_RIGHTS', form.democracyRightsTeam],
+    ['FIELD_EVENTS', form.fieldEventsTeam],
+    ['FINANCE_FUNDRAISING', form.financeFundraisingTeam],
+    ['OPERATIONS', form.operationsTeam],
+    ['OUTREACH_ORGANIZING', form.outreachOrganizingTeam],
+    ['SOCIAL_MEDIA_STORYTELLING', form.socialMediaStorytellingTeam],
+  ];
+
+  const out: Array<{ teamKey: string; roleLabel: string }> = [];
+  for (const [teamKey, roles] of pairs) {
+    for (const roleLabel of roles || []) {
+      const r = safeTrim(roleLabel);
+      if (!r) continue;
+      out.push({ teamKey, roleLabel: r });
+    }
+  }
+  return out;
 }
 
 export default function TeamSignupPage() {
@@ -215,6 +240,49 @@ export default function TeamSignupPage() {
         moduleId: 'MODULE_002_TEAM_SIGNUP',
         honeypot: form.honeypot,
         data: form,
+      });
+
+      // Unified intake pipeline (ContactsDB + Origin + Follow-up queue)
+      await processIntake({
+        originType: 'TEAM_SIGNUP',
+        originRef: res.requestId,
+        rawPayload: {
+          moduleId: 'MODULE_002_TEAM_SIGNUP',
+          form,
+          submit: res,
+        },
+        contact: {
+          fullName: safeTrim(form.name) || undefined,
+          email: safeTrim(form.email) || undefined,
+          phone: safeTrim(form.phone) || undefined,
+          state: 'AR',
+        },
+        followUp: {
+          followUpNeeded: true,
+          followUpNotes: 'New team signup. Assign a volunteer captain and follow up within 48 hours.',
+          sourceLabel: 'Team Signup',
+          location: safeTrim(form.location) || undefined,
+          notes: [
+            safeTrim(form.otherContribution) ? `Other: ${safeTrim(form.otherContribution)}` : '',
+            safeTrim(form.eventInviteDetails) ? `Events: ${safeTrim(form.eventInviteDetails)}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          permissionToContact: !!form.permissionToContact,
+          automationEligible: false,
+        },
+        volunteer: {
+          profile: {
+            contactId: 'TEMP', // overwritten inside pipeline
+            hoursPerWeek: form.hoursPerWeek,
+            hoursPerWeekOther: safeTrim(form.hoursPerWeekOther) || undefined,
+            justStayInTouch: !!form.stayInTouch,
+            otherContribution: safeTrim(form.otherContribution) || undefined,
+            eventInviteDetails: safeTrim(form.eventInviteDetails) || undefined,
+            permissionToContact: !!form.permissionToContact,
+          },
+          interests: buildVolunteerInterests(form),
+        },
       });
 
       setRequestId(res.requestId);

@@ -12,6 +12,7 @@ import {
   Textarea,
 } from '../../shared/components/FormControls';
 import { submitModule } from '../../shared/utils/apiClient';
+import { processIntake } from '../../shared/utils/intakePipeline';
 
 type FormState = {
   contactName: string;
@@ -405,6 +406,57 @@ export default function EventRequestPage() {
           requestedRole: form.requestedRole,
           mediaExpected: form.mediaExpected,
           permissionToContact: form.permissionToContact,
+        },
+      });
+
+      // Unified intake pipeline (ContactsDB + Origin + Follow-up queue)
+      await processIntake({
+        originType: 'EVENT_REQUEST',
+        originRef: res.requestId,
+        rawPayload: {
+          moduleId: 'MODULE_001_EVENT_REQUEST',
+          form,
+          submit: res,
+        },
+        contact: {
+          fullName: safeTrim(form.contactName) || undefined,
+          email: safeTrim(form.contactEmail) || undefined,
+          phone: safeTrim(form.contactPhone) || undefined,
+          city: safeTrim(form.city) || undefined,
+          state: safeTrim(form.state) || 'AR',
+        },
+        followUp: {
+          followUpNeeded: true,
+          followUpNotes: 'New event request. Triage within 24 hours and confirm logistics.',
+          sourceLabel: 'Event Request',
+          location: [
+            safeTrim(form.venueName) || safeTrim(form.eventTitle),
+            safeTrim(form.city),
+            safeTrim(form.state) || 'AR',
+          ]
+            .filter(Boolean)
+            .join(' • '),
+          notes: [
+            safeTrim(form.eventType) ? `Type: ${safeTrim(form.eventType)}` : '',
+            showOtherType && safeTrim(form.eventTypeOther)
+              ? `Other type: ${safeTrim(form.eventTypeOther)}`
+              : '',
+            safeTrim(form.requestedRole) ? `Requested role: ${safeTrim(form.requestedRole)}` : '',
+            safeTrim(form.startDateTime) ? `Start: ${safeTrim(form.startDateTime)}` : '',
+            safeTrim(form.endDateTime) ? `End: ${safeTrim(form.endDateTime)}` : '',
+            form.isTimeFlexible ? 'Time flexible: Yes' : 'Time flexible: No',
+            safeTrim(form.addressLine1) ? `Address: ${safeTrim(form.addressLine1)}` : '',
+            safeTrim(form.addressLine2) ? safeTrim(form.addressLine2) : '',
+            safeTrim(form.zip) ? `ZIP: ${safeTrim(form.zip)}` : '',
+            safeTrim(form.eventDescription) ? `Details: ${safeTrim(form.eventDescription)}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          permissionToContact: !!form.permissionToContact,
+          automationEligible: false,
+        },
+        eventLead: {
+          eventLeadText: safeTrim(form.eventTitle) || undefined,
         },
       });
 

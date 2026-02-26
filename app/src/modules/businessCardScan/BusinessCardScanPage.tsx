@@ -20,10 +20,7 @@ import React, {
     Textarea,
   } from '../../shared/components/FormControls';
   
-  import {
-    addOrigin,
-    upsertContact,
-  } from '../../shared/utils/contactsDb';
+  import { processIntake } from '../../shared/utils/intakePipeline';
   
   /* ================================
      TYPES
@@ -276,57 +273,60 @@ import React, {
       try {
         setStage('SAVING');
   
-        const contact =
-          await upsertContact({
-            fullName:
-              safeTrim(
-                extracted.fullName
-              ) || undefined,
-            email:
-              safeTrim(
-                extracted.email
-              ) || undefined,
-            phone:
-              normalizePhone(
-                extracted.phone
-              ),
-            city:
-              safeTrim(
-                extracted.city
-              ) || undefined,
-            county:
-              safeTrim(
-                extracted.county
-              ) || undefined,
-            state:
-              safeTrim(
-                extracted.state
-              ) || 'AR',
-            facebookHandle:
-              safeTrim(
-                extracted.facebookHandle
-              ) || undefined,
-            facebookProfileName:
-              safeTrim(
-                extracted.facebookProfileName
-              ) || undefined,
-            facebookConnected:
-              !!safeTrim(
-                extracted.facebookHandle
-              ) ||
-              !!safeTrim(
-                extracted.facebookProfileName
-              ),
-          });
-  
-        await addOrigin({
-          contactId: contact.id,
-          originType: 'MANUAL_ADMIN',
-          notes: originNote,
+        await processIntake({
+          originType: 'BUSINESS_CARD_SCAN',
+          originNotes:
+            safeTrim(originNote) || undefined,
           rawPayload: {
-            source:
-              'BUSINESS_CARD_SCAN',
+            source: 'BUSINESS_CARD_SCAN',
             extracted,
+          },
+          contact: {
+            fullName:
+              safeTrim(extracted.fullName) || undefined,
+            email:
+              safeTrim(extracted.email) || undefined,
+            phone:
+              normalizePhone(extracted.phone),
+            city:
+              safeTrim(extracted.city) || undefined,
+            county:
+              safeTrim(extracted.county) || undefined,
+            state:
+              safeTrim(extracted.state) || 'AR',
+            facebookHandle:
+              safeTrim(extracted.facebookHandle) || undefined,
+            facebookProfileName:
+              safeTrim(extracted.facebookProfileName) || undefined,
+            facebookConnected:
+              !!safeTrim(extracted.facebookHandle) ||
+              !!safeTrim(extracted.facebookProfileName),
+          },
+          followUp: {
+            followUpNeeded: true,
+            followUpNotes:
+              safeTrim(originNote) || undefined,
+            sourceLabel: 'Business Card Scan',
+            location: [
+              safeTrim(extracted.city),
+              safeTrim(extracted.county)
+                ? `${safeTrim(extracted.county)} County`
+                : '',
+              safeTrim(extracted.state) || 'AR',
+            ]
+              .filter(Boolean)
+              .join(' • '),
+            notes:
+              safeTrim(extracted.notes) ||
+              'Business card captured and parsed by AI. Review and follow up.',
+            permissionToContact: true,
+            facebookConnected:
+              !!safeTrim(extracted.facebookHandle) ||
+              !!safeTrim(extracted.facebookProfileName),
+            facebookProfileName:
+              safeTrim(extracted.facebookProfileName),
+            facebookHandle:
+              safeTrim(extracted.facebookHandle),
           },
         });
   

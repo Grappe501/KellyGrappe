@@ -12,6 +12,7 @@ export type OriginType =
   | 'TEAM_SIGNUP'
   | 'LIVE_FIELD'
   | 'EVENT_REQUEST'
+  | 'BUSINESS_CARD_SCAN'
   | 'IMPORT_CSV'
   | 'MANUAL_ADMIN'
   | 'UNKNOWN';
