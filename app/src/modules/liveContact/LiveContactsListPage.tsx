@@ -76,6 +76,87 @@ async function safeJson(res: Response) {
   }
 }
 
+function asString(v: unknown) {
+  if (v === null || v === undefined) return '';
+  return String(v);
+}
+
+function asNullableString(v: unknown) {
+  const s = asString(v).trim();
+  return s ? s : null;
+}
+
+function parseIsoMaybe(v: unknown): Date | null {
+  const s = asNullableString(v);
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function hoursBetween(a: Date, b: Date) {
+  return (b.getTime() - a.getTime()) / (1000 * 60 * 60);
+}
+
+function hoursSince(iso: string | null | undefined) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return hoursBetween(d, new Date());
+}
+
+type Urgency = 'NONE' | 'WATCH' | 'URGENT';
+
+function urgencyForItem(params: {
+  createdAtIso?: string | null;
+  status?: FollowUpStatus;
+  eventStartIso?: string | null;
+}) {
+  const now = new Date();
+  const status = params.status ?? 'NEW';
+
+  // Completed items are never urgent visually
+  if (status === 'COMPLETED') return 'NONE' as Urgency;
+
+  // SLA urgency (time since created)
+  const createdAt = params.createdAtIso ? new Date(params.createdAtIso) : null;
+  const slaHours =
+    createdAt && !isNaN(createdAt.getTime()) ? hoursBetween(createdAt, now) : null;
+
+  // Event urgency (time until start)
+  const eventStart = params.eventStartIso ? new Date(params.eventStartIso) : null;
+  const untilHours =
+    eventStart && !isNaN(eventStart.getTime()) ? hoursBetween(now, eventStart) : null;
+
+  // Urgent if event is very soon
+  if (untilHours !== null && untilHours <= 72 && untilHours >= -24) return 'URGENT';
+  if (untilHours !== null && untilHours <= 168 && untilHours >= -24) return 'WATCH';
+
+  // SLA urgency if it’s sitting NEW too long
+  if (slaHours !== null && status === 'NEW' && slaHours >= 48) return 'URGENT';
+  if (slaHours !== null && status === 'NEW' && slaHours >= 24) return 'WATCH';
+
+  return 'NONE';
+}
+
+function urgencyStyles(u: Urgency) {
+  switch (u) {
+    case 'URGENT':
+      return {
+        ring: 'border-rose-300 bg-rose-50',
+        chip: 'bg-rose-100 text-rose-900 border-rose-200',
+        label: 'Urgent',
+      };
+    case 'WATCH':
+      return {
+        ring: 'border-amber-300 bg-amber-50',
+        chip: 'bg-amber-100 text-amber-900 border-amber-200',
+        label: 'Watch',
+      };
+    default:
+      return null;
+  }
+}
+
 /**
  * Server-backed followups (global board).
  * These endpoints will be implemented next:
@@ -115,6 +196,45 @@ async function patchServerFollowUp(
   }
 }
 
+async function createCalendarHold(params: { title: string; start: string; end: string }) {
+  const res = await fetch('/.netlify/functions/calendar-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+
+  const j = await safeJson(res);
+  if (!res.ok) {
+    throw new Error(j?.error ?? `Calendar create failed (${res.status}).`);
+  }
+  return j as any; // expects Google Calendar event object (id, htmlLink, etc.)
+}
+
+function buildApprovalMessage(params: {
+  contactName?: string | null;
+  eventTitle?: string | null;
+  startIso?: string | null;
+  endIso?: string | null;
+  venue?: string | null;
+  address?: string | null;
+}) {
+  const lines: string[] = [];
+  lines.push(`Hi${params.contactName ? ` ${params.contactName}` : ''},`);
+  lines.push('');
+  lines.push('Thanks for your event request — we’ve reviewed the details and are moving it forward.');
+  lines.push('');
+  if (params.eventTitle) lines.push(`Event: ${params.eventTitle}`);
+  if (params.startIso) lines.push(`Start: ${formatWhen(params.startIso)}`);
+  if (params.endIso) lines.push(`End: ${formatWhen(params.endIso)}`);
+  if (params.venue) lines.push(`Venue: ${params.venue}`);
+  if (params.address) lines.push(`Address: ${params.address}`);
+  lines.push('');
+  lines.push('Next step: our team will confirm final details and follow up shortly.');
+  lines.push('');
+  lines.push('— Kelly Grappe Campaign Team');
+  return lines.join('\n');
+}
+
 export default function LiveContactsListPage() {
   const nav = useNavigate();
 
@@ -126,6 +246,13 @@ export default function LiveContactsListPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Per-item action state (prevents double clicks)
+  const [busy, setBusy] = useState<Record<string, string | null>>({});
+
+  function setBusyState(id: string, state: string | null) {
+    setBusy((prev) => ({ ...prev, [id]: state }));
+  }
 
   async function refresh() {
     setError(null);
@@ -199,7 +326,9 @@ export default function LiveContactsListPage() {
         });
     }
 
-    return localItems.filter((i) => !i.archived).map((i) => ({ ...i, __server: null } as any));
+    return localItems
+      .filter((i) => !i.archived)
+      .map((i) => ({ ...i, __server: null } as any));
   }, [mode, serverItems, localItems]);
 
   const pending = useMemo(
@@ -212,7 +341,11 @@ export default function LiveContactsListPage() {
     [unified]
   );
 
-  async function updateItem(id: string, patch: Partial<LiveFollowUp>, server?: ServerFollowUp | null) {
+  async function updateItem(
+    id: string,
+    patch: Partial<LiveFollowUp>,
+    server?: ServerFollowUp | null
+  ) {
     if (mode === 'server') {
       // Translate to server patch
       const status = (patch as any).followUpStatus as FollowUpStatus | undefined;
@@ -242,6 +375,85 @@ export default function LiveContactsListPage() {
 
   async function archiveItem(id: string, server?: ServerFollowUp | null) {
     await updateItem(id, { archived: true }, server);
+  }
+
+  async function approveAndCreateHold(server: ServerFollowUp) {
+    const payload = server.payload ?? {};
+    const title = asNullableString(payload['eventTitle']) ?? 'Event Request';
+    const start = asNullableString(payload['startDateTime']);
+    const end = asNullableString(payload['endDateTime']);
+
+    if (!start || !end) {
+      throw new Error('Missing start/end date/time in the event payload.');
+    }
+
+    const event = await createCalendarHold({ title, start, end });
+
+    const eventId = asNullableString(event?.id);
+    const eventLink = asNullableString(event?.htmlLink);
+
+    const stamp = new Date().toISOString();
+    const noteLine = `[${stamp}] Approved and created calendar hold.`;
+
+    await patchServerFollowUp(server.id, {
+      calendar_event_id: eventId,
+      calendar_event_link: eventLink,
+      status: 'IN_PROGRESS',
+      notes: (server.notes ? `${server.notes}\n\n` : '') + noteLine,
+    });
+  }
+
+  async function approveAndNotify(server: ServerFollowUp) {
+    const payload = server.payload ?? {};
+
+    const contactName = server.contact_name ?? null;
+    const email = server.contact_email ?? null;
+    const phone = server.contact_phone ?? null;
+
+    const address = [
+      asNullableString(payload['addressLine1']),
+      asNullableString(payload['addressLine2']),
+      asNullableString(payload['city']),
+      asNullableString(payload['state']),
+      asNullableString(payload['zip']),
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const msg = buildApprovalMessage({
+      contactName,
+      eventTitle: asNullableString(payload['eventTitle']),
+      startIso: asNullableString(payload['startDateTime']),
+      endIso: asNullableString(payload['endDateTime']),
+      venue: asNullableString(payload['venueName']),
+      address: address || null,
+    });
+
+    const subject = `Event Request Approved${asNullableString(payload['eventTitle']) ? `: ${asString(payload['eventTitle'])}` : ''}`;
+
+    // Open email and/or SMS compose windows (no backend required)
+    if (email) {
+      const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
+        subject
+      )}&body=${encodeURIComponent(msg)}`;
+      window.open(mailto, '_blank');
+    }
+
+    if (phone) {
+      // Very basic SMS deep-link. (Behavior varies by platform/browser.)
+      const sms = `sms:${encodeURIComponent(phone)}?&body=${encodeURIComponent(
+        msg
+      )}`;
+      window.open(sms, '_blank');
+    }
+
+    const stamp = new Date().toISOString();
+    const noteLine = `[${stamp}] Approved and initiated notification (${email ? 'email' : ''}${email && phone ? '+' : ''}${phone ? 'sms' : ''}${!email && !phone ? 'no contact method' : ''}).`;
+
+    await patchServerFollowUp(server.id, {
+      status: 'IN_PROGRESS',
+      notes: (server.notes ? `${server.notes}\n\n` : '') + noteLine,
+    });
   }
 
   return (
@@ -304,8 +516,36 @@ export default function LiveContactsListPage() {
               const b = badge(c.followUpStatus as FollowUpStatus);
               const server = c.__server as ServerFollowUp | null;
 
+              // SLA + event timing
+              const sla = hoursSince(c.createdAt);
+              const slaLabel = sla === null ? '' : `${Math.floor(sla)}h`;
+
+              const payload = server?.payload ?? {};
+              const startDate = parseIsoMaybe(payload['startDateTime']);
+              const untilHours = startDate ? hoursBetween(new Date(), startDate) : null;
+
+              const eventCountdown =
+                untilHours === null
+                  ? null
+                  : untilHours >= 0
+                  ? `in ${Math.round(untilHours)}h`
+                  : `${Math.round(Math.abs(untilHours))}h ago`;
+
+              const urgency = urgencyForItem({
+                createdAtIso: c.createdAt,
+                status: c.followUpStatus as FollowUpStatus,
+                eventStartIso: asNullableString(payload['startDateTime']),
+              });
+              const uStyles = urgencyStyles(urgency);
+
               return (
-                <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
+                <div
+                  key={c.id}
+                  className={[
+                    'rounded-2xl border bg-white p-4 space-y-4',
+                    uStyles ? uStyles.ring : 'border-slate-200',
+                  ].join(' ')}
+                >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="space-y-1">
                       <div className="text-base font-semibold text-slate-900">
@@ -316,17 +556,27 @@ export default function LiveContactsListPage() {
                         {c.phone && c.email ? ' • ' : ''}
                         {c.email ?? ''}
                       </div>
-                      <div className="text-xs text-slate-500">
-                        Added: {formatWhen(c.createdAt)}
-                        {c.location ? ` • ${c.location}` : ''}
-                        {c.source ? ` • Source: ${c.source}` : ''}
-                        {mode === 'server' ? ' • Global' : ' • Local'}
+                      <div className="text-xs text-slate-500 flex flex-wrap gap-x-2 gap-y-1">
+                        <span>Added: {formatWhen(c.createdAt)}</span>
+                        {c.location ? <span>• {c.location}</span> : null}
+                        {c.source ? <span>• Source: {c.source}</span> : null}
+                        <span>• {mode === 'server' ? 'Global' : 'Local'}</span>
+                        {slaLabel ? <span>• SLA: {slaLabel}</span> : null}
+                        {eventCountdown ? <span>• Event: {eventCountdown}</span> : null}
                       </div>
                     </div>
 
-                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${b.cls}`}>
-                      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                      <span className="font-medium">{b.label}</span>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${b.cls}`}>
+                        <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                        <span className="font-medium">{b.label}</span>
+                      </div>
+
+                      {uStyles ? (
+                        <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${uStyles.chip}`}>
+                          <span className="font-semibold">{uStyles.label}</span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -369,35 +619,161 @@ export default function LiveContactsListPage() {
                         id={`notes-${c.id}`}
                         rows={3}
                         value={c.followUpNotes ?? ''}
-                        onChange={(e) => updateItem(c.id, { followUpNotes: e.target.value } as any, server)}
+                        onChange={(e) =>
+                          updateItem(c.id, { followUpNotes: e.target.value } as any, server)
+                        }
                         placeholder="Add notes for outreach..."
                       />
                     </div>
                   </div>
 
-                  {/* Option A calendar workflow: button will work once calendar endpoints are wired to server followups */}
+                  {/* Option A calendar workflow + approvals */}
                   {mode === 'server' && isEventRequest(server?.source) ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                      <div className="text-sm font-semibold text-slate-900">Event Request Actions</div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                      <div className="text-sm font-semibold text-slate-900">
+                        Event Request Actions
+                      </div>
+
+                      {server?.payload ? (
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                          <div className="text-sm font-semibold text-slate-900">Event Details</div>
+
+                          {(() => {
+                            const p = server.payload ?? {};
+                            const title = asNullableString(p['eventTitle']);
+                            const type = asNullableString(p['eventType']);
+                            const start = asNullableString(p['startDateTime']);
+                            const end = asNullableString(p['endDateTime']);
+                            const venue = asNullableString(p['venueName']);
+
+                            const address = [
+                              asNullableString(p['addressLine1']),
+                              asNullableString(p['addressLine2']),
+                              asNullableString(p['city']),
+                              asNullableString(p['state']),
+                              asNullableString(p['zip']),
+                            ]
+                              .filter(Boolean)
+                              .join(', ');
+
+                            const role = asNullableString(p['requestedRole']);
+                            const attendance = asNullableString(p['expectedAttendance']);
+                            const media = asNullableString(p['mediaExpected']);
+                            const desc = asNullableString(p['eventDescription']);
+
+                            return (
+                              <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Title</div>
+                                    <div className="text-slate-900">{title ?? '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Type</div>
+                                    <div className="text-slate-900">{type ?? '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Start</div>
+                                    <div className="text-slate-900">{start ? formatWhen(start) : '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">End</div>
+                                    <div className="text-slate-900">{end ? formatWhen(end) : '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Venue</div>
+                                    <div className="text-slate-900">{venue ?? '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Address</div>
+                                    <div className="text-slate-900">{address || '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Requested Role</div>
+                                    <div className="text-slate-900">{role ?? '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Expected Attendance</div>
+                                    <div className="text-slate-900">{attendance ?? '—'}</div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-600">Media Expected</div>
+                                    <div className="text-slate-900">{media ?? '—'}</div>
+                                  </div>
+                                </div>
+
+                                {desc ? (
+                                  <div className="text-sm">
+                                    <div className="text-xs font-semibold text-slate-600 mb-1">Description</div>
+                                    <div className="text-slate-900 whitespace-pre-wrap">{desc}</div>
+                                  </div>
+                                ) : null}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      ) : null}
+
                       <div className="text-sm text-slate-700">
-                        Staff review required. Create a calendar hold only after confirming details.
+                        Staff review required. Approve first — then create calendar hold and notify.
                       </div>
 
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           type="button"
                           variant="secondary"
-                          disabled={!!server?.calendar_event_id}
-                          onClick={() => {
-                            // We will wire this next:
-                            // call /.netlify/functions/calendar-create with followupId,
-                            // then update followup row with calendar_event_id + link
-                            alert(
-                              'Calendar hold button is staged. Next step: wire calendar-create to followups.'
-                            );
+                          disabled={
+                            !!server?.calendar_event_id ||
+                            busy[server.id] === 'calendar' ||
+                            !asNullableString(server?.payload?.['startDateTime']) ||
+                            !asNullableString(server?.payload?.['endDateTime'])
+                          }
+                          onClick={async () => {
+                            if (!server) return;
+                            try {
+                              setBusyState(server.id, 'calendar');
+                              await approveAndCreateHold(server);
+                              await refresh();
+                            } catch (err: any) {
+                              alert(err?.message ?? 'Failed to create calendar hold.');
+                            } finally {
+                              setBusyState(server.id, null);
+                            }
                           }}
                         >
-                          {server?.calendar_event_id ? 'Calendar Hold Created' : 'Create Calendar Hold'}
+                          {busy[server.id] === 'calendar'
+                            ? 'Creating Hold…'
+                            : server?.calendar_event_id
+                            ? 'Calendar Hold Created'
+                            : 'Approve & Create Hold'}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={busy[server.id] === 'notify'}
+                          onClick={async () => {
+                            if (!server) return;
+                            try {
+                              setBusyState(server.id, 'notify');
+                              await approveAndNotify(server);
+                              await refresh();
+                            } catch (err: any) {
+                              alert(err?.message ?? 'Approve & Notify failed.');
+                            } finally {
+                              setBusyState(server.id, null);
+                            }
+                          }}
+                        >
+                          {busy[server.id] === 'notify' ? 'Opening Notify…' : 'Approve & Notify'}
                         </Button>
 
                         {server?.calendar_event_link ? (
@@ -410,6 +786,13 @@ export default function LiveContactsListPage() {
                           </Button>
                         ) : null}
                       </div>
+
+                      {!asNullableString(server?.payload?.['startDateTime']) ||
+                      !asNullableString(server?.payload?.['endDateTime']) ? (
+                        <div className="text-xs text-amber-900">
+                          Missing start/end time — calendar hold cannot be created until both exist.
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -440,7 +823,11 @@ export default function LiveContactsListPage() {
                       Mark Complete
                     </Button>
 
-                    <Button type="button" variant="secondary" onClick={() => archiveItem(c.id, server)}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => archiveItem(c.id, server)}
+                    >
                       Archive
                     </Button>
                   </div>
