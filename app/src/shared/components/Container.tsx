@@ -1,10 +1,18 @@
 import React from 'react';
 
-export default function Container({ children }: { children: React.ReactNode }) {
+type Props = React.HTMLAttributes<HTMLDivElement>;
+
+export default function Container({
+  children,
+  className = '',
+  ...rest
+}: Props) {
   return (
-    <div className="w-full">
-      {/* Mobile-first: comfortable gutters without narrowing content */}
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
+    <div
+      className={`min-h-screen w-full bg-slate-100 flex justify-center ${className}`}
+      {...rest}
+    >
+      <div className="w-full max-w-7xl border-x-4 border-slate-300 bg-slate-50 sm:shadow-sm">
         {children}
       </div>
     </div>
