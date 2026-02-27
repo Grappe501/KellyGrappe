@@ -8,11 +8,6 @@ import './styles.css';
 import './styles/theme.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Layout>
-        <App />
-      </Layout>
-    </BrowserRouter>
-  </React.StrictMode>
-);
+<BrowserRouter>
+  <App />
+</BrowserRouter>
