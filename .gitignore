@@ -4,3 +4,4 @@ app/dist
 .env
 .netlify
 .DS_Store
+contactlistsos-auth-*.json
