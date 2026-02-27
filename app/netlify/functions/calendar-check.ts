@@ -1,7 +1,6 @@
 
 // app/netlify/functions/calendar-check.ts
 import { getGoogleAccessToken } from "./_lib/googleAuth";
-import fetch from "node-fetch";
 
 export const handler = async (event) => {
   const { start, end } = JSON.parse(event.body);

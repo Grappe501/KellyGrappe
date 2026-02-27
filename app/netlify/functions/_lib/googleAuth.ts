@@ -1,6 +1,5 @@
 
 // app/netlify/functions/_lib/googleAuth.ts
-import fetch from "node-fetch";
 import jwt from "jsonwebtoken";
 
 export async function getGoogleAccessToken() {
