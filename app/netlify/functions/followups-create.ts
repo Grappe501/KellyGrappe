@@ -2,41 +2,29 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function json(statusCode: number, payload: any) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      // Basic CORS (safe for internal app calls; tighten later if needed)
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST,OPTIONS",
-    },
-    body: JSON.stringify(payload),
-  };
+if (!supabaseUrl || !supabaseServiceKey) {
+  // Fail loudly in logs; handler will also return a clear error.
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars.");
 }
+
+const supabase = createClient(supabaseUrl ?? "", supabaseServiceKey ?? "");
 
 function asString(v: unknown) {
   if (v === null || v === undefined) return "";
   return String(v);
 }
 
-function asNullableString(v: unknown): string | null {
-  const s = asString(v).trim();
-  return s ? s : null;
-}
-
-function asBoolOrNull(v: unknown): boolean | null {
+function asBool(v: unknown, fallback = false) {
   if (typeof v === "boolean") return v;
   if (typeof v === "string") {
-    const t = v.toLowerCase().trim();
-    if (t === "true") return true;
-    if (t === "false") return false;
+    const s = v.toLowerCase().trim();
+    if (s === "true") return true;
+    if (s === "false") return false;
   }
-  return null;
+  return fallback;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -45,113 +33,143 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function normalizeInitials(raw: unknown): string {
   const v = asString(raw).toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return (v.slice(0, 3) || "UNK").padEnd(3, "X").slice(0, 3);
+  return v.slice(0, 3) || "UNK";
 }
 
-function allowedStatus(raw: unknown) {
-  const s = asString(raw).trim().toUpperCase();
-  if (s === "NEW" || s === "IN_PROGRESS" || s === "COMPLETED") return s;
-  return "NEW";
+function jsonResponse(statusCode: number, body: Record<string, unknown>) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      // Keep CORS permissive for now (campaign ops + mobile field usage).
+      // Tighten later if/when we add auth.
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST,OPTIONS",
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 export const handler = async (event: any) => {
-  // Preflight
+  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
-    return json(200, { ok: true });
+    return jsonResponse(200, { ok: true });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    // This is the *functions* environment, not VITE_ env
-    return json(500, {
-      error:
-        "Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing in Netlify env vars.",
+  if (event.httpMethod !== "POST") {
+    return jsonResponse(405, { error: "Method not allowed. Use POST." });
+  }
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return jsonResponse(500, {
+      error: "Server misconfigured: missing Supabase env vars.",
     });
   }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
     const body = JSON.parse(event.body || "{}");
 
     if (!isObject(body)) {
-      return json(400, { error: "Invalid body payload." });
+      return jsonResponse(400, { error: "Invalid body payload." });
     }
 
-    // Required
-    const contact_id = asString(body.contact_id).trim();
-    if (!contact_id) {
-      return json(400, { error: "Missing required field: contact_id" });
-    }
+    /**
+     * IMPORTANT:
+     * Your Supabase `followups` table does NOT include `contact_id` (per your error).
+     * So we DO NOT write it as a column.
+     * We preserve it inside `payload` for traceability.
+     */
+    const contact_id = asString(body.contact_id).trim(); // kept for payload audit only
+    const module_id = asString(body.module_id).trim() || null;
 
-    // Status + timestamps
-    const status = allowedStatus(body.status);
-    const now = new Date().toISOString();
+    const statusRaw = asString(body.status).trim().toUpperCase();
+    const status =
+      statusRaw === "NEW" || statusRaw === "IN_PROGRESS" || statusRaw === "COMPLETED"
+        ? statusRaw
+        : "NEW";
 
-    // Optional (keep conservative: only use columns we expect to exist)
-    const notes = asNullableString(body.notes);
-    const archived = asBoolOrNull(body.archived) ?? false;
-    const completed_at =
-      body.completed_at === null || body.completed_at === undefined
-        ? null
-        : asNullableString(body.completed_at);
+    // Optional core fields (columns that are typical in your followups table)
+    const notes = asString(body.notes) || null;
+    const archived = asBool(body.archived, false);
+    const completed_at = body.completed_at ? asString(body.completed_at) : null;
 
-    const name = asNullableString(body.name);
-    const phone = asNullableString(body.phone);
-    const email = asNullableString(body.email);
-    const location = asNullableString(body.location);
-    const source = asNullableString(body.source);
+    const title = asString(body.title) || null;
+    const source = asString(body.source) || null;
 
-    // Client sends: permission_to_contact
-    const permission_to_contact = asBoolOrNull(body.permission_to_contact);
+    // Contact identity fields your board uses
+    const contact_name = asString(body.contact_name || body.name) || null;
+    const contact_phone = asString(body.contact_phone || body.phone) || null;
+    const contact_email = asString(body.contact_email || body.email) || null;
 
-    // IMPORTANT:
-    // Your table shows `contact_eligible` (NOT `automation_eligible`).
-    // We map eligibility to that column to avoid schema mismatch.
+    // Map UI field name -> actual DB column name (per your screenshot)
+    // UI sometimes sends `automation_eligible`; DB column is `contact_eligible`.
     const contact_eligible =
-      typeof permission_to_contact === "boolean" ? permission_to_contact : null;
+      typeof body.contact_eligible === "boolean"
+        ? body.contact_eligible
+        : typeof body.automation_eligible === "boolean"
+        ? body.automation_eligible
+        : null;
+
+    const permission_to_contact =
+      typeof body.permission_to_contact === "boolean" ? body.permission_to_contact : null;
 
     const entry_initials = normalizeInitials(body.entry_initials);
 
-    const insertPayload: Record<string, any> = {
-      contact_id,
+    const now = new Date().toISOString();
+
+    // Keep a full audit snapshot, but strip anything huge if needed later.
+    const payload = {
+      ...body,
+      contact_id: contact_id || null,
+      module_id,
+      entry_initials,
+      captured_at: now,
+    };
+
+    /**
+     * Only include columns we are confident exist:
+     * - status, notes, archived, completed_at
+     * - title, source
+     * - contact_* identity fields
+     * - payload
+     * - contact_eligible (based on your table screenshot)
+     * - permission_to_contact (if your table has it; if it doesn't, we keep it in payload anyway)
+     * - created_at/updated_at
+     */
+    const insertPayload: Record<string, unknown> = {
       status,
       notes,
       archived,
       completed_at,
 
-      name,
-      phone,
-      email,
-      location,
+      title,
       source,
 
-      // schema-safe write:
-      contact_eligible,
-      permission_to_contact,
+      contact_name,
+      contact_email,
+      contact_phone,
 
-      entry_initials,
+      payload,
+
       created_at: now,
       updated_at: now,
     };
 
-    // Remove null/undefined keys that can be noisy (keeps payload clean)
-    Object.keys(insertPayload).forEach((k) => {
-      if (insertPayload[k] === undefined) delete insertPayload[k];
-    });
+    // Only add these if present (prevents accidental “column not found” errors if schema changes)
+    if (contact_eligible !== null) insertPayload.contact_eligible = contact_eligible;
+    if (permission_to_contact !== null) insertPayload.permission_to_contact = permission_to_contact;
+    if (entry_initials) insertPayload.entry_initials = entry_initials;
 
-    const { data, error } = await supabase
-      .from("followups")
-      .insert(insertPayload)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("followups").insert(insertPayload).select().single();
 
     if (error) {
-      return json(500, { error: error.message });
+      return jsonResponse(500, { error: error.message });
     }
 
-    return json(200, { ok: true, item: data });
+    return jsonResponse(200, { ok: true, item: data });
   } catch (err: any) {
-    return json(500, {
+    return jsonResponse(500, {
       error: err?.message ?? "followups-create failed.",
     });
   }
