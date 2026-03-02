@@ -2,29 +2,44 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * ENV VALIDATION
+ */
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  // Fail loudly in logs; handler will also return a clear error.
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars.");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error(
+    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables."
+  );
 }
 
-const supabase = createClient(supabaseUrl ?? "", supabaseServiceKey ?? "");
+const supabase = createClient(
+  SUPABASE_URL ?? "",
+  SUPABASE_SERVICE_ROLE_KEY ?? ""
+);
 
-function asString(v: unknown) {
+/**
+ * UTILITIES
+ */
+function asString(v: unknown): string {
   if (v === null || v === undefined) return "";
   return String(v);
 }
 
-function asBool(v: unknown, fallback = false) {
+function asNullableString(v: unknown): string | null {
+  const s = asString(v).trim();
+  return s.length ? s : null;
+}
+
+function asBoolOrNull(v: unknown): boolean | null {
   if (typeof v === "boolean") return v;
   if (typeof v === "string") {
     const s = v.toLowerCase().trim();
     if (s === "true") return true;
     if (s === "false") return false;
   }
-  return fallback;
+  return null;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -36,13 +51,17 @@ function normalizeInitials(raw: unknown): string {
   return v.slice(0, 3) || "UNK";
 }
 
+function normalizeStatus(raw: unknown): string {
+  const s = asString(raw).trim().toUpperCase();
+  if (s === "NEW" || s === "IN_PROGRESS" || s === "COMPLETED") return s;
+  return "NEW";
+}
+
 function jsonResponse(statusCode: number, body: Record<string, unknown>) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json",
-      // Keep CORS permissive for now (campaign ops + mobile field usage).
-      // Tighten later if/when we add auth.
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "POST,OPTIONS",
@@ -51,8 +70,10 @@ function jsonResponse(statusCode: number, body: Record<string, unknown>) {
   };
 }
 
+/**
+ * HANDLER
+ */
 export const handler = async (event: any) => {
-  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return jsonResponse(200, { ok: true });
   }
@@ -61,9 +82,9 @@ export const handler = async (event: any) => {
     return jsonResponse(405, { error: "Method not allowed. Use POST." });
   }
 
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return jsonResponse(500, {
-      error: "Server misconfigured: missing Supabase env vars.",
+      error: "Server misconfigured: Supabase environment variables missing.",
     });
   }
 
@@ -71,84 +92,76 @@ export const handler = async (event: any) => {
     const body = JSON.parse(event.body || "{}");
 
     if (!isObject(body)) {
-      return jsonResponse(400, { error: "Invalid body payload." });
+      return jsonResponse(400, { error: "Invalid request body." });
     }
 
     /**
-     * IMPORTANT:
-     * Your Supabase `followups` table does NOT include `contact_id` (per your error).
-     * So we DO NOT write it as a column.
-     * We preserve it inside `payload` for traceability.
+     * REQUIRED RELATIONAL FIELD
      */
-    const contact_id = asString(body.contact_id).trim(); // kept for payload audit only
-    const module_id = asString(body.module_id).trim() || null;
+    const contact_id = asNullableString(body.contact_id);
+    if (!contact_id) {
+      return jsonResponse(400, {
+        error: "Missing required field: contact_id",
+      });
+    }
 
-    const statusRaw = asString(body.status).trim().toUpperCase();
-    const status =
-      statusRaw === "NEW" || statusRaw === "IN_PROGRESS" || statusRaw === "COMPLETED"
-        ? statusRaw
-        : "NEW";
+    /**
+     * CORE FIELDS
+     */
+    const status = normalizeStatus(body.status);
+    const notes = asNullableString(body.notes);
+    const archived = body.archived === true;
+    const completed_at = asNullableString(body.completed_at);
 
-    // Optional core fields (columns that are typical in your followups table)
-    const notes = asString(body.notes) || null;
-    const archived = asBool(body.archived, false);
-    const completed_at = body.completed_at ? asString(body.completed_at) : null;
+    /**
+     * CONTACT SNAPSHOT FIELDS
+     */
+    const contact_name = asNullableString(body.contact_name || body.name);
+    const contact_email = asNullableString(body.contact_email || body.email);
+    const contact_phone = asNullableString(body.contact_phone || body.phone);
 
-    const title = asString(body.title) || null;
-    const source = asString(body.source) || null;
-
-    // Contact identity fields your board uses
-    const contact_name = asString(body.contact_name || body.name) || null;
-    const contact_phone = asString(body.contact_phone || body.phone) || null;
-    const contact_email = asString(body.contact_email || body.email) || null;
-
-    // Map UI field name -> actual DB column name (per your screenshot)
-    // UI sometimes sends `automation_eligible`; DB column is `contact_eligible`.
+    /**
+     * ELIGIBILITY + PERMISSION
+     */
     const contact_eligible =
-      typeof body.contact_eligible === "boolean"
-        ? body.contact_eligible
-        : typeof body.automation_eligible === "boolean"
-        ? body.automation_eligible
-        : null;
+      asBoolOrNull(body.contact_eligible) ??
+      asBoolOrNull(body.automation_eligible);
 
-    const permission_to_contact =
-      typeof body.permission_to_contact === "boolean" ? body.permission_to_contact : null;
+    const permission_to_contact = asBoolOrNull(body.permission_to_contact);
 
+    /**
+     * TRACKING
+     */
     const entry_initials = normalizeInitials(body.entry_initials);
+    const source = asNullableString(body.source);
+    const title = asNullableString(body.title);
 
     const now = new Date().toISOString();
 
-    // Keep a full audit snapshot, but strip anything huge if needed later.
+    /**
+     * FULL AUDIT SNAPSHOT
+     */
     const payload = {
       ...body,
-      contact_id: contact_id || null,
-      module_id,
-      entry_initials,
       captured_at: now,
     };
 
     /**
-     * Only include columns we are confident exist:
-     * - status, notes, archived, completed_at
-     * - title, source
-     * - contact_* identity fields
-     * - payload
-     * - contact_eligible (based on your table screenshot)
-     * - permission_to_contact (if your table has it; if it doesn't, we keep it in payload anyway)
-     * - created_at/updated_at
+     * FINAL INSERT OBJECT
      */
     const insertPayload: Record<string, unknown> = {
+      contact_id, // 🔥 NOW A REAL COLUMN
       status,
       notes,
       archived,
       completed_at,
 
-      title,
-      source,
-
       contact_name,
       contact_email,
       contact_phone,
+
+      source,
+      title,
 
       payload,
 
@@ -156,12 +169,19 @@ export const handler = async (event: any) => {
       updated_at: now,
     };
 
-    // Only add these if present (prevents accidental “column not found” errors if schema changes)
-    if (contact_eligible !== null) insertPayload.contact_eligible = contact_eligible;
-    if (permission_to_contact !== null) insertPayload.permission_to_contact = permission_to_contact;
+    if (contact_eligible !== null)
+      insertPayload.contact_eligible = contact_eligible;
+
+    if (permission_to_contact !== null)
+      insertPayload.permission_to_contact = permission_to_contact;
+
     if (entry_initials) insertPayload.entry_initials = entry_initials;
 
-    const { data, error } = await supabase.from("followups").insert(insertPayload).select().single();
+    const { data, error } = await supabase
+      .from("followups")
+      .insert(insertPayload)
+      .select()
+      .single();
 
     if (error) {
       return jsonResponse(500, { error: error.message });
