@@ -1,6 +1,6 @@
 // app/src/modules/liveContact/components/FollowUpRow.tsx
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Button,
   Label,
@@ -65,22 +65,30 @@ function syncBadge(syncStatus: string) {
 const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
   const [saving, setSaving] = useState(false);
 
-  async function update(patch: any) {
-    try {
-      setSaving(true);
-      await onUpdate(row, patch);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const notesId = `notes-${row.id}`;
 
-  async function handleStatusChange(status: FollowUpStatus) {
-    await update({
-      followUpStatus: status,
-      followUpCompletedAt:
-        status === "COMPLETED" ? new Date().toISOString() : null,
-    });
-  }
+  const update = useCallback(
+    async (patch: any) => {
+      try {
+        setSaving(true);
+        await onUpdate(row, patch);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [row, onUpdate]
+  );
+
+  const handleStatusChange = useCallback(
+    async (status: FollowUpStatus) => {
+      await update({
+        followUpStatus: status,
+        followUpCompletedAt:
+          status === "COMPLETED" ? new Date().toISOString() : null,
+      });
+    },
+    [update]
+  );
 
   return (
     <div
@@ -190,8 +198,12 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
 
       {/* Notes */}
       <div className="mt-4">
-        <Label>Follow-up Notes</Label>
+        <Label htmlFor={notesId}>
+          Follow-up Notes
+        </Label>
+
         <Textarea
+          id={notesId}
           rows={3}
           value={row.followUpNotes}
           onChange={(e) =>
