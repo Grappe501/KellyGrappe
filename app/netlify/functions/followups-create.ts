@@ -1,140 +1,155 @@
+// app/netlify/functions/followups-create.ts
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+type FollowUpStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
-function asString(v: unknown) {
-  if (v === null || v === undefined) return "";
+function jsonResponse(statusCode: number, body: Record<string, unknown>) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      // CORS (safe default for Netlify functions used by your SPA)
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    },
+    body: JSON.stringify(body),
+  };
+}
+
+function safeJsonParse(raw: unknown): any {
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function asString(v: unknown, fallback = ""): string {
+  if (v === null || v === undefined) return fallback;
   return String(v);
 }
 
-function asBool(v: unknown, fallback = false) {
+function asNullableString(v: unknown): string | null {
+  const s = asString(v).trim();
+  return s ? s : null;
+}
+
+function asBool(v: unknown, fallback = false): boolean {
   if (typeof v === "boolean") return v;
   if (typeof v === "string") {
-    if (v.toLowerCase() === "true") return true;
-    if (v.toLowerCase() === "false") return false;
+    const t = v.toLowerCase().trim();
+    if (t === "true") return true;
+    if (t === "false") return false;
   }
   return fallback;
 }
 
-function isObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
+function isStatus(v: string): v is FollowUpStatus {
+  return v === "NEW" || v === "IN_PROGRESS" || v === "COMPLETED";
 }
 
-function normalizeInitials(raw: unknown): string {
+function normalizeInitials(raw: unknown): string | null {
   const v = asString(raw).toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return v.slice(0, 3) || "UNK";
+  const sliced = v.slice(0, 3);
+  return sliced ? sliced : null;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v || !String(v).trim()) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return String(v);
 }
 
 export const handler = async (event: any) => {
+  // Netlify preflight
+  if (event.httpMethod === "OPTIONS") {
+    return jsonResponse(200, { ok: true });
+  }
+
   try {
-    const body = JSON.parse(event.body || "{}");
+    const SUPABASE_URL = requireEnv("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!isObject(body)) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid body payload." }),
-      };
-    }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Required minimal identity
-    const contact_id = asString(body.contact_id).trim();
-    const status = asString(body.status).trim() || "NEW";
+    const body = safeJsonParse(event.body);
 
-    if (!contact_id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing required field: contact_id" }),
-      };
-    }
+    /**
+     * We keep this function schema-safe:
+     * - Only insert columns we are confident exist on public.followups
+     * - Anything extra goes into payload JSON
+     *
+     * Known/used elsewhere in your project:
+     * - status, notes, archived, completed_at, created_at, updated_at
+     * - source, title
+     * - contact_name, contact_email, contact_phone
+     * - payload (json)
+     * - calendar_event_id, calendar_event_link (used later via update)
+     */
 
-    // Optional fields
-    const notes = asString(body.notes) || null;
+    const rawStatus = asString(body.status, "NEW").trim().toUpperCase();
+    const status: FollowUpStatus = isStatus(rawStatus as FollowUpStatus)
+      ? (rawStatus as FollowUpStatus)
+      : "NEW";
+
     const archived = asBool(body.archived, false);
-    const completed_at = body.completed_at
-      ? asString(body.completed_at)
-      : null;
 
-    const name = asString(body.name) || null;
-    const phone = asString(body.phone) || null;
-    const email = asString(body.email) || null;
-    const location = asString(body.location) || null;
-    const source = asString(body.source) || null;
+    const completed_at =
+      status === "COMPLETED"
+        ? asNullableString(body.completed_at) ?? nowIso()
+        : asNullableString(body.completed_at); // allow null/undefined when not completed
 
-    const automation_eligible =
-      typeof body.automation_eligible === "boolean"
-        ? body.automation_eligible
-        : null;
-
-    const permission_to_contact =
-      typeof body.permission_to_contact === "boolean"
-        ? body.permission_to_contact
-        : null;
-
-    const facebook_connected =
-      typeof body.facebook_connected === "boolean"
-        ? body.facebook_connected
-        : null;
-
-    const facebook_profile_name =
-      asString(body.facebook_profile_name) || null;
-
-    const facebook_handle =
-      asString(body.facebook_handle) || null;
-
-    const entry_initials = normalizeInitials(body.entry_initials);
-
-    const now = new Date().toISOString();
-
-    const insertPayload = {
-      contact_id,
+    const insertPayload: Record<string, unknown> = {
+      source: asNullableString(body.source) ?? "LIVE_FIELD",
       status,
-      notes,
+
+      title: asNullableString(body.title) ?? asNullableString(body.contact_name) ?? asNullableString(body.name),
+      notes: typeof body.notes === "string" ? body.notes : body.notes === null ? null : null,
+
+      contact_name: asNullableString(body.contact_name) ?? asNullableString(body.name),
+      contact_email: asNullableString(body.contact_email) ?? asNullableString(body.email),
+      contact_phone: asNullableString(body.contact_phone) ?? asNullableString(body.phone),
+
       archived,
-      completed_at,
-      name,
-      phone,
-      email,
-      location,
-      source,
-      automation_eligible,
-      permission_to_contact,
-      facebook_connected,
-      facebook_profile_name,
-      facebook_handle,
-      entry_initials,
-      created_at: now,
-      updated_at: now,
+      completed_at: completed_at ?? null,
+
+      // Keep *everything* for audit/debug + future migrations (safe JSON column)
+      payload: body && typeof body === "object" ? body : {},
+
+      created_at: nowIso(),
+      updated_at: nowIso(),
     };
+
+    // Optional metadata: only store in payload unless/until you add columns.
+    // (This avoids "column does not exist" failures like automation_eligible.)
+    const entry_initials = normalizeInitials(body.entry_initials ?? body.entryInitials);
+    if (entry_initials) {
+      (insertPayload.payload as any).entry_initials = entry_initials;
+    }
 
     const { data, error } = await supabase
       .from("followups")
       .insert(insertPayload)
-      .select()
+      .select("*")
       .single();
 
     if (error) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: error.message }),
-      };
+      return jsonResponse(500, { ok: false, error: error.message });
     }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        ok: true,
-        item: data,
-      }),
-    };
+    return jsonResponse(200, { ok: true, item: data });
   } catch (err: any) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: err?.message ?? "followups-create failed.",
-      }),
-    };
+    return jsonResponse(500, {
+      ok: false,
+      error: err?.message ?? "followups-create failed.",
+    });
   }
 };
