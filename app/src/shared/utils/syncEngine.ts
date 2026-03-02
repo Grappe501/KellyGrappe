@@ -16,9 +16,7 @@ import {
   
   export async function syncPendingFollowUps(): Promise<void> {
     try {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        return;
-      }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   
       const localRows = await listLiveFollowUps();
       const pending = localRows.filter(isPending);
@@ -27,36 +25,36 @@ import {
   
       for (const row of pending) {
         try {
-          const response = await fetch(
-            '/.netlify/functions/followups-create',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contact_id: row.contactId,
-                status: row.followUpStatus,
-                notes: row.followUpNotes ?? row.notes ?? null,
-                archived: row.archived ?? false,
-                completed_at: row.followUpCompletedAt ?? null,
+          await updateLiveFollowUp(row.id, {
+            lastSyncAttemptAt: nowIso(),
+            lastSyncError: null,
+          } as any);
   
-                name: row.name ?? null,
-                phone: row.phone ?? null,
-                email: row.email ?? null,
-                location: row.location ?? null,
-                source: row.source ?? 'LIVE_FIELD',
+          const response = await fetch('/.netlify/functions/followups-create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contact_id: row.contactId,
+              status: row.followUpStatus,
+              notes: row.followUpNotes ?? row.notes ?? null,
+              archived: row.archived ?? false,
+              completed_at: row.followUpCompletedAt ?? null,
   
-                permission_to_contact:
-                  row.permissionToContact ?? null,
+              name: row.name ?? null,
+              phone: row.phone ?? null,
+              email: row.email ?? null,
+              location: row.location ?? null,
+              source: row.source ?? 'LIVE_FIELD',
   
-                entry_initials: row.entryInitials ?? 'UNK',
-              }),
-            }
-          );
+              permission_to_contact: row.permissionToContact ?? null,
+              entry_initials: row.entryInitials ?? 'UNK',
+            }),
+          });
   
-          const json = await response.json();
+          const json = await response.json().catch(() => ({} as any));
   
           if (!response.ok || !json?.item?.id) {
-            throw new Error(json?.error || 'Sync failed');
+            throw new Error(json?.error || `Sync failed (${response.status})`);
           }
   
           await updateLiveFollowUp(row.id, {
