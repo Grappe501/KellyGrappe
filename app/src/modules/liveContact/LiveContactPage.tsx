@@ -1,14 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Container from '../../shared/components/Container';
 import { Card, CardHeader, CardContent } from '../../shared/components/Card';
 import {
   Button,
   ErrorText,
-  HelpText,
   Input,
   Label,
-  Select,
   Textarea,
 } from '../../shared/components/FormControls';
 
@@ -17,90 +14,67 @@ import {
   addOrigin,
   addLiveFollowUp,
   parseCityCounty,
+  listLiveFollowUpsPendingSync,
+  markLiveFollowUpSynced,
+  markLiveFollowUpSyncError,
 } from '../../shared/utils/contactsDb';
 
 type FormState = {
+  initials: string;
   name: string;
   phone: string;
   email: string;
-
   location: string;
-  source: 'Door' | 'Phone' | 'Event' | 'Text' | 'Referral' | 'Other';
-  sourceOther: string;
-
   notes: string;
-
   permissionToContact: boolean;
-  automationEligible: boolean;
-
-  facebookConnected: boolean;
-  facebookProfileName: string;
-  facebookHandle: string;
-
   followUpNeeded: boolean;
   followUpNotes: string;
-
-  honeypot: string;
 };
-
-const DRAFT_KEY = 'KG_SOS_LIVE_CONTACT_DRAFT_v3';
 
 function safeTrim(v: unknown) {
   return (v ?? '').toString().trim();
-}
-
-function isEmailLike(v: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
 function normalizePhone(raw: string) {
   return raw.replace(/\D/g, '');
 }
 
-export default function LiveContactPage() {
-  const nav = useNavigate();
-  const didHydrateDraft = useRef(false);
+function isEmailLike(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
 
+export default function LiveContactPage() {
+  const nameRef = useRef<HTMLInputElement | null>(null);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
+    initials: '',
     name: '',
     phone: '',
     email: '',
     location: '',
-    source: 'Door',
-    sourceOther: '',
     notes: '',
     permissionToContact: false,
-    automationEligible: false,
-    facebookConnected: false,
-    facebookProfileName: '',
-    facebookHandle: '',
     followUpNeeded: true,
     followUpNotes: '',
-    honeypot: '',
   });
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const sourceLabel = useMemo(() => {
-    return form.source === 'Other'
-      ? `Other — ${safeTrim(form.sourceOther) || 'not specified'}`
-      : form.source;
-  }, [form.source, form.sourceOther]);
-
   const readyToSave = useMemo(() => {
-    const hasName = !!safeTrim(form.name);
-    const hasPhone = !!safeTrim(form.phone);
-    const hasEmail = !!safeTrim(form.email);
-    const hasContext = !!safeTrim(form.location) || !!safeTrim(form.notes);
-
-    if (!hasName) return false;
-    if (hasPhone || hasEmail) return true;
-    return hasContext;
+    return (
+      form.initials.length === 3 &&
+      !!safeTrim(form.name) &&
+      (!!safeTrim(form.phone) || !!safeTrim(form.email)) &&
+      form.permissionToContact
+    );
   }, [form]);
 
   const emailValid = useMemo(() => {
@@ -108,59 +82,81 @@ export default function LiveContactPage() {
     return isEmailLike(form.email);
   }, [form.email]);
 
-  /* ---------------- Draft Hydration ---------------- */
-
   useEffect(() => {
-    if (didHydrateDraft.current) return;
-    didHydrateDraft.current = true;
-
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed?.data) {
-        setForm((prev) => ({ ...prev, ...parsed.data }));
-      }
-    } catch {}
+    nameRef.current?.focus();
   }, []);
 
-  /* ---------------- Draft Save ---------------- */
-
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      try {
-        localStorage.setItem(
-          DRAFT_KEY,
-          JSON.stringify({
-            updatedAt: new Date().toISOString(),
-            data: form,
-          })
-        );
-      } catch {}
-    }, 300);
+    function handleOnline() {
+      runSync();
+    }
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
-    return () => window.clearTimeout(t);
-  }, [form]);
+  async function runSync() {
+    if (!navigator.onLine) return;
 
-  function clearDraft() {
+    setSyncing(true);
+
     try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch {}
-  }
+      const pending = await listLiveFollowUpsPendingSync();
 
-  /* ---------------- Submit ---------------- */
+      for (const row of pending) {
+        try {
+          const res = await fetch('/.netlify/functions/followups-create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contact_id: row.contactId,
+              status: row.followUpStatus,
+              notes: row.followUpNotes ?? row.notes ?? null,
+              archived: row.archived ?? false,
+              completed_at: row.followUpCompletedAt ?? null,
+              name: row.name ?? null,
+              phone: row.phone ?? null,
+              email: row.email ?? null,
+              location: row.location ?? null,
+              source: row.source ?? 'LIVE_FIELD',
+              permission_to_contact: row.permissionToContact ?? null,
+              entry_initials: row.entryInitials ?? 'UNK',
+            }),
+          });
+
+          const json = await res.json();
+
+          if (!res.ok || !json?.item?.id) {
+            throw new Error(json?.error || 'Sync failed');
+          }
+
+          await markLiveFollowUpSynced({
+            id: row.id,
+            serverId: json.item.id,
+          });
+        } catch (err: any) {
+          await markLiveFollowUpSyncError({
+            id: row.id,
+            error: err?.message ?? 'Sync error',
+          });
+        }
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!readyToSave) {
-      setError('Please enter a name and at least one contact method or context.');
+      setError('Initials, name, contact method, and consent required.');
       return;
     }
 
     if (!emailValid) {
-      setError('Please enter a valid email address.');
+      setError('Invalid email format.');
       return;
     }
 
@@ -178,19 +174,12 @@ export default function LiveContactPage() {
         city,
         county,
         state: 'AR',
-        facebookConnected: form.facebookConnected,
-        facebookProfileName: form.facebookConnected
-          ? safeTrim(form.facebookProfileName) || undefined
-          : undefined,
-        facebookHandle: form.facebookConnected
-          ? safeTrim(form.facebookHandle) || undefined
-          : undefined,
       });
 
       await addOrigin({
         contactId: contact.id,
         originType: 'LIVE_FIELD',
-        rawPayload: { ...form },
+        rawPayload: form,
       });
 
       await addLiveFollowUp({
@@ -206,35 +195,27 @@ export default function LiveContactPage() {
         email: contact.email,
         location: form.location,
         notes: form.notes,
-        source: sourceLabel,
-        automationEligible: form.automationEligible,
         permissionToContact: form.permissionToContact,
-        facebookConnected: form.facebookConnected,
-        facebookProfileName: form.facebookProfileName,
-        facebookHandle: form.facebookHandle,
-      });
+        entryInitials: form.initials,
+        syncStatus: 'PENDING_SYNC',
+      } as any);
 
-      clearDraft();
+      setSuccess('Saved locally. Syncing…');
 
-      setForm({
+      await runSync();
+
+      setForm((prev) => ({
+        ...prev,
         name: '',
         phone: '',
         email: '',
         location: '',
-        source: 'Door',
-        sourceOther: '',
         notes: '',
-        permissionToContact: false,
-        automationEligible: false,
-        facebookConnected: false,
-        facebookProfileName: '',
-        facebookHandle: '',
-        followUpNeeded: true,
         followUpNotes: '',
-        honeypot: '',
-      });
+        permissionToContact: false,
+      }));
 
-      nav('/live-contacts');
+      nameRef.current?.focus();
     } catch (err: any) {
       setError(err?.message ?? 'Save failed.');
     } finally {
@@ -244,159 +225,102 @@ export default function LiveContactPage() {
 
   return (
     <Container>
-      <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Live Contact Entry"
+          subtitle="Offline-first. Auto-sync enabled."
+        />
 
-        {/* Scanner Shortcut */}
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="text-sm font-bold text-slate-900">
-              Have a business card?
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="initials">Your Initials (3 Letters)</Label>
+              <Input
+                id="initials"
+                value={form.initials}
+                maxLength={3}
+                onChange={(e) =>
+                  update(
+                    'initials',
+                    e.target.value.toUpperCase().replace(/[^A-Z]/g, '')
+                  )
+                }
+              />
             </div>
-            <div className="text-xs text-slate-600">
-              Use the AI scanner to auto-extract details instead of typing.
+
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                ref={nameRef}
+                id="name"
+                value={form.name}
+                onChange={(e) => update('name', e.target.value)}
+              />
             </div>
-          </div>
 
-          <Button
-            type="button"
-            onClick={() => nav('/business-card-scan')}
-          >
-            Open Business Card Scanner
-          </Button>
-        </div>
+            <div>
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={form.phone}
+                onChange={(e) => update('phone', e.target.value)}
+              />
+            </div>
 
-        <Card>
-          <CardHeader
-            title="Live Contact Entry"
-            subtitle="Fast field entry. Stored in the campaign contact engine."
-          />
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => update('email', e.target.value.toLowerCase())}
+              />
+              {!emailValid && <ErrorText>Invalid email.</ErrorText>}
+            </div>
 
-          <CardContent>
-            <form onSubmit={onSubmit} className="space-y-6">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={form.permissionToContact}
+                onChange={(e) =>
+                  update('permissionToContact', e.target.checked)
+                }
+              />
+              <Label htmlFor="permissionToContact">
+                Permission to Contact
+              </Label>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={form.name}
-                    onChange={(e) => update('name', e.target.value)}
-                  />
-                </div>
+            {error && <ErrorText>{error}</ErrorText>}
 
-                <div>
-                  <Label htmlFor="location">City / County</Label>
-                  <Input
-                    id="location"
-                    value={form.location}
-                    onChange={(e) => update('location', e.target.value)}
-                  />
-                </div>
+            {success && (
+              <div className="text-green-600 text-sm font-medium">
+                {success}
               </div>
+            )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={form.phone}
-                    onChange={(e) => update('phone', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => update('email', e.target.value)}
-                  />
-                  {!emailValid ? <ErrorText>Invalid email.</ErrorText> : null}
-                </div>
+            {syncing && (
+              <div className="text-indigo-600 text-sm font-medium">
+                Syncing pending records…
               </div>
+            )}
 
-              {/* FACEBOOK SECTION */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={runSync}
+              >
+                Retry Sync
+              </Button>
 
-              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-4">
-                <div className="flex items-start gap-3">
-                  <input
-                    id="facebookConnected"
-                    type="checkbox"
-                    checked={form.facebookConnected}
-                    onChange={(e) =>
-                      update('facebookConnected', e.target.checked)
-                    }
-                  />
-                  <div>
-                    <Label htmlFor="facebookConnected">
-                      Connected on Facebook
-                    </Label>
-                    <HelpText>
-                      Check if you are connected or exchanged Facebook info.
-                    </HelpText>
-                  </div>
-                </div>
-
-                {form.facebookConnected && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="facebookProfileName">
-                        Facebook Profile Name
-                      </Label>
-                      <Input
-                        id="facebookProfileName"
-                        value={form.facebookProfileName}
-                        onChange={(e) =>
-                          update('facebookProfileName', e.target.value)
-                        }
-                        placeholder="Exact display name"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="facebookHandle">
-                        Facebook Handle
-                      </Label>
-                      <Input
-                        id="facebookHandle"
-                        value={form.facebookHandle}
-                        onChange={(e) =>
-                          update('facebookHandle', e.target.value)
-                        }
-                        placeholder="facebook.com/username"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Conversation Notes</Label>
-                <Textarea
-                  id="notes"
-                  rows={4}
-                  value={form.notes}
-                  onChange={(e) => update('notes', e.target.value)}
-                />
-              </div>
-
-              {error ? <ErrorText>{error}</ErrorText> : null}
-
-              <div className="flex justify-between">
-                <Button type="button" variant="secondary" onClick={() => nav('/')}>
-                  Back
-                </Button>
-
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Saving…' : 'Save Contact'}
-                </Button>
-              </div>
-
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+              <Button type="submit" disabled={!readyToSave || submitting}>
+                {submitting ? 'Saving…' : 'Save & Add Next'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </Container>
   );
 }

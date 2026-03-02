@@ -6,6 +6,7 @@
    - Origin tracking for every intake (team signup, live field contact, event request, import, etc).
    - Support partial contacts (field data may be incomplete).
    - Keep module-specific details normalized (volunteer profile / interests / event leads).
+   - OFFLINE-FIRST: live followups must support write-through + sync status tracking.
 */
 
 export type OriginType =
@@ -18,6 +19,14 @@ export type OriginType =
   | 'UNKNOWN';
 
 export type FollowUpStatus = 'NEW' | 'IN_PROGRESS' | 'COMPLETED';
+
+/**
+ * SyncStatus is the local-to-server lifecycle marker.
+ * - PENDING_SYNC: must be attempted / retried
+ * - SYNCED: confirmed on server (serverId set)
+ * - ERROR: last attempt failed (kept locally; retry later)
+ */
+export type SyncStatus = 'PENDING_SYNC' | 'SYNCED' | 'ERROR';
 
 export type Contact = {
   id: string; // uuid
@@ -88,6 +97,16 @@ export type EventLead = {
   createdAt: string; // ISO
 };
 
+/**
+ * LiveFollowUp is the LOCAL canonical unit of field intake.
+ * It must never disappear.
+ *
+ * Sync fields support:
+ * - write local immediately
+ * - attempt server create
+ * - mark SYNCED + serverId if successful
+ * - otherwise keep PENDING_SYNC or ERROR and retry later
+ */
 export type LiveFollowUp = {
   id: string; // uuid
   contactId: string;
@@ -114,11 +133,27 @@ export type LiveFollowUp = {
   facebookConnected?: boolean;
   facebookProfileName?: string;
   facebookHandle?: string;
+
+  /**
+   * NEW: identify who captured the record (3-letter initials like SAG).
+   * For backwards compatibility until UI is updated, this may be absent;
+   * it will be defaulted to "UNK" at write time.
+   */
+  entryInitials?: string;
+
+  /**
+   * NEW: offline-first sync tracking
+   */
+  syncStatus?: SyncStatus; // default PENDING_SYNC
+  serverId?: string; // set when synced to server
+  lastSyncAttemptAt?: string;
+  lastSyncError?: string;
+  createdOffline?: boolean;
 };
 
 type DbName = 'kg_sos_ops_db';
 const DB_NAME: DbName = 'kg_sos_ops_db';
-const DB_VERSION = 2; // bump when you add indexes or change keyPaths
+const DB_VERSION = 3; // bumped: add live_followups sync indexes
 
 const STORE_CONTACTS = 'contacts';
 const STORE_ORIGINS = 'contact_origins';
@@ -142,6 +177,29 @@ function normalizePhone(raw: string): string {
   return safeTrim(raw).replace(/\D/g, '');
 }
 
+function normalizeInitials(raw: unknown): string | undefined {
+  const v = safeTrim(raw).toUpperCase();
+  if (!v) return undefined;
+
+  // keep only letters/numbers, then enforce max 3
+  const cleaned = v.replace(/[^A-Z0-9]/g, '').slice(0, 3);
+  if (!cleaned) return undefined;
+  return cleaned;
+}
+
+/**
+ * Best-effort offline detection.
+ * Used to tag records created when the browser *thinks* it's offline.
+ */
+function isOfflineBestEffort(): boolean {
+  try {
+    if (typeof navigator === 'undefined') return true;
+    return navigator.onLine === false;
+  } catch {
+    return true;
+  }
+}
+
 function uuid() {
   try {
     return crypto.randomUUID();
@@ -153,19 +211,32 @@ function uuid() {
 function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () =>
-      reject(req.error ?? new Error('IndexedDB request failed'));
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed'));
   });
 }
 
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () =>
-      reject(tx.error ?? new Error('IndexedDB transaction failed'));
-    tx.onabort = () =>
-      reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
   });
+}
+
+function ensureIndex(
+  store: IDBObjectStore,
+  indexName: string,
+  keyPath: string | string[],
+  options?: IDBIndexParameters
+) {
+  // IDB will throw if index already exists
+  try {
+    if (!store.indexNames.contains(indexName)) {
+      store.createIndex(indexName, keyPath, options ?? { unique: false });
+    }
+  } catch {
+    // Ignore — safest in production upgrades across browsers
+  }
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -218,22 +289,41 @@ async function openDb(): Promise<IDBDatabase> {
         s.createIndex('status', 'status', { unique: false });
       }
 
+      // live followups — either create or upgrade indexes
       if (!db.objectStoreNames.contains(STORE_LIVE_FOLLOWUPS)) {
         const s = db.createObjectStore(STORE_LIVE_FOLLOWUPS, { keyPath: 'id' });
         s.createIndex('contactId', 'contactId', { unique: false });
         s.createIndex('followUpStatus', 'followUpStatus', { unique: false });
         s.createIndex('createdAt', 'createdAt', { unique: false });
         s.createIndex('archived', 'archived', { unique: false });
+
+        // NEW indexes for offline-first sync reliability
+        s.createIndex('syncStatus', 'syncStatus', { unique: false });
+        s.createIndex('serverId', 'serverId', { unique: false });
+        s.createIndex('lastSyncAttemptAt', 'lastSyncAttemptAt', { unique: false });
+      } else {
+        // Upgrade path: ensure indexes exist without recreating store
+        const tx = req.transaction;
+        if (tx) {
+          const s = tx.objectStore(STORE_LIVE_FOLLOWUPS);
+
+          ensureIndex(s, 'contactId', 'contactId', { unique: false });
+          ensureIndex(s, 'followUpStatus', 'followUpStatus', { unique: false });
+          ensureIndex(s, 'createdAt', 'createdAt', { unique: false });
+          ensureIndex(s, 'archived', 'archived', { unique: false });
+
+          // NEW indexes
+          ensureIndex(s, 'syncStatus', 'syncStatus', { unique: false });
+          ensureIndex(s, 'serverId', 'serverId', { unique: false });
+          ensureIndex(s, 'lastSyncAttemptAt', 'lastSyncAttemptAt', { unique: false });
+        }
       }
     };
 
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () =>
-      reject(req.error ?? new Error('Failed to open IndexedDB'));
+    req.onerror = () => reject(req.error ?? new Error('Failed to open IndexedDB'));
     req.onblocked = () => {
       // Another tab may be holding the DB open during upgrade
-      // Don’t reject—Netlify build doesn’t run this; users will only see it in-browser.
-      // Still, keep a clear message for debugging.
       // eslint-disable-next-line no-console
       console.warn(
         '[contactsDb] IndexedDB open blocked. Close other tabs using the app and retry.'
@@ -325,8 +415,7 @@ export async function upsertContact(
       typeof input.facebookConnected === 'boolean'
         ? input.facebookConnected
         : base.facebookConnected,
-    facebookProfileName:
-      safeTrim(input.facebookProfileName) || base.facebookProfileName,
+    facebookProfileName: safeTrim(input.facebookProfileName) || base.facebookProfileName,
     facebookHandle: safeTrim(input.facebookHandle) || base.facebookHandle,
 
     tags: Array.isArray(input.tags) ? input.tags : base.tags,
@@ -404,9 +493,7 @@ export async function replaceVolunteerInterests(params: {
 
   try {
     // delete all existing for contact
-    const existing = (await reqToPromise(
-      index.getAll(params.contactId)
-    )) as VolunteerInterest[];
+    const existing = (await reqToPromise(index.getAll(params.contactId))) as VolunteerInterest[];
 
     for (const row of existing || []) {
       store.delete(row.id);
@@ -464,15 +551,61 @@ export async function addEventLead(params: {
 
 /* ---------------------------- LIVE FOLLOW-UPS --------------------------- */
 
+function applyLiveFollowUpDefaults(
+  input: Partial<LiveFollowUp>
+): Partial<LiveFollowUp> {
+  const entryInitials = normalizeInitials(input.entryInitials) ?? 'UNK';
+
+  const syncStatus: SyncStatus = (input.syncStatus as SyncStatus) ?? 'PENDING_SYNC';
+
+  const createdOffline =
+    typeof input.createdOffline === 'boolean'
+      ? input.createdOffline
+      : isOfflineBestEffort();
+
+  return {
+    ...input,
+    entryInitials,
+    syncStatus,
+    createdOffline,
+  };
+}
+
+/**
+ * UI helper: stable badge label for local rows.
+ * Use this in the board if you want consistent wording.
+ */
+export function syncStatusLabel(s?: SyncStatus): 'Synced' | 'Pending Sync' | 'Sync Error' {
+  const v = (s ?? 'PENDING_SYNC') as SyncStatus;
+  if (v === 'SYNCED') return 'Synced';
+  if (v === 'ERROR') return 'Sync Error';
+  return 'Pending Sync';
+}
+
+/**
+ * UI helper: stable severity level for local rows.
+ */
+export function syncStatusLevel(s?: SyncStatus): 'OK' | 'PENDING' | 'ERROR' {
+  const v = (s ?? 'PENDING_SYNC') as SyncStatus;
+  if (v === 'SYNCED') return 'OK';
+  if (v === 'ERROR') return 'ERROR';
+  return 'PENDING';
+}
+
 export async function addLiveFollowUp(
   input: Omit<LiveFollowUp, 'id' | 'createdAt'> & { createdAt?: string }
 ): Promise<LiveFollowUp> {
   const db = await openDb();
 
-  const row: LiveFollowUp = {
+  const base: LiveFollowUp = {
     id: uuid(),
     createdAt: input.createdAt ?? nowIso(),
     ...input,
+  };
+
+  const row: LiveFollowUp = {
+    ...base,
+    ...(applyLiveFollowUpDefaults(base) as LiveFollowUp),
   };
 
   const tx = db.transaction(STORE_LIVE_FOLLOWUPS, 'readwrite');
@@ -494,16 +627,22 @@ export async function updateLiveFollowUp(
   const store = tx.objectStore(STORE_LIVE_FOLLOWUPS);
 
   try {
-    const existing = (await reqToPromise(store.get(id))) as
-      | LiveFollowUp
-      | undefined;
+    const existing = (await reqToPromise(store.get(id))) as LiveFollowUp | undefined;
 
     if (!existing) {
       await txDone(tx);
       return;
     }
 
-    store.put({ ...existing, ...patch });
+    const next = {
+      ...existing,
+      ...patch,
+    } as LiveFollowUp;
+
+    // ensure defaults never disappear
+    const normalized = applyLiveFollowUpDefaults(next) as LiveFollowUp;
+
+    store.put({ ...next, ...normalized });
     await txDone(tx);
   } catch (e: any) {
     throw new Error(e?.message ?? 'Failed to update live follow-up.');
@@ -526,6 +665,80 @@ export async function listLiveFollowUps(): Promise<LiveFollowUp[]> {
     await txDone(tx).catch(() => {});
     throw new Error(e?.message ?? 'Failed to list live follow-ups.');
   }
+}
+
+/**
+ * NEW: list only items that need a server write or retry.
+ *
+ * IMPORTANT:
+ * - Includes both PENDING_SYNC and ERROR
+ * - Excludes SYNCED
+ * - Sorted oldest-first to preserve fairness
+ */
+export async function listLiveFollowUpsPendingSync(): Promise<LiveFollowUp[]> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_LIVE_FOLLOWUPS, 'readonly');
+  const store = tx.objectStore(STORE_LIVE_FOLLOWUPS);
+
+  try {
+    let rows: LiveFollowUp[] = [];
+
+    if (store.indexNames.contains('syncStatus')) {
+      const idx = store.index('syncStatus');
+
+      const pending = (await reqToPromise(idx.getAll('PENDING_SYNC' as any))) as LiveFollowUp[];
+      const errors = (await reqToPromise(idx.getAll('ERROR' as any))) as LiveFollowUp[];
+
+      rows = [...(pending || []), ...(errors || [])];
+    } else {
+      // fallback: full scan (should not happen after v3 upgrade)
+      const all = (await reqToPromise(store.getAll())) as LiveFollowUp[];
+      rows = (all || []).filter((r) => r.syncStatus !== 'SYNCED');
+    }
+
+    await txDone(tx);
+
+    // prioritize oldest pending first for queue fairness
+    return (rows || []).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  } catch (e: any) {
+    await txDone(tx).catch(() => {});
+    throw new Error(e?.message ?? 'Failed to list pending sync follow-ups.');
+  }
+}
+
+export async function markLiveFollowUpPendingSync(params: {
+  id: string;
+  lastSyncAttemptAt?: string;
+  lastSyncError?: string;
+}): Promise<void> {
+  await updateLiveFollowUp(params.id, {
+    syncStatus: 'PENDING_SYNC',
+    lastSyncAttemptAt: params.lastSyncAttemptAt ?? nowIso(),
+    lastSyncError: params.lastSyncError,
+  });
+}
+
+export async function markLiveFollowUpSynced(params: {
+  id: string;
+  serverId: string;
+}): Promise<void> {
+  await updateLiveFollowUp(params.id, {
+    syncStatus: 'SYNCED',
+    serverId: safeTrim(params.serverId) || undefined,
+    lastSyncAttemptAt: nowIso(),
+    lastSyncError: undefined,
+  });
+}
+
+export async function markLiveFollowUpSyncError(params: {
+  id: string;
+  error: string;
+}): Promise<void> {
+  await updateLiveFollowUp(params.id, {
+    syncStatus: 'ERROR',
+    lastSyncAttemptAt: nowIso(),
+    lastSyncError: safeTrim(params.error) || 'Unknown sync error',
+  });
 }
 
 /* --------------------------- UTILS FOR MODULES -------------------------- */
