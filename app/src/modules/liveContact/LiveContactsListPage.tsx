@@ -14,7 +14,6 @@ import {
 import { useFollowUps, type UnifiedRow } from "./hooks/useFollowUps";
 import FollowUpRow from "./components/FollowUpRow";
 
-type SortKey = "NEWEST" | "OLDEST";
 type AssignmentFilter = "ALL" | "UNASSIGNED" | "MINE";
 type PriorityFilter = "ALL" | "WATCH" | "URGENT";
 
@@ -34,22 +33,16 @@ export default function LiveContactsListPage() {
   } = useFollowUps();
 
   const [search, setSearch] = useState("");
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("NEWEST");
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("ALL");
   const [priorityFilter, setPriorityFilter] =
     useState<PriorityFilter>("ALL");
 
   /**
-   * Filtering
+   * Base filtering
    */
   const filtered = useMemo(() => {
-    let r = rows;
-
-    if (!showCompleted) {
-      r = r.filter((x) => x.followUpStatus !== "COMPLETED");
-    }
+    let r = rows.filter((x) => !x.archived);
 
     if (assignmentFilter === "UNASSIGNED") {
       r = r.filter((x) => !x.assignedTo);
@@ -72,7 +65,6 @@ export default function LiveContactsListPage() {
           x.phone,
           x.source,
           x.followUpNotes,
-          x.entryInitials ?? "",
           x.assignedTo ?? "",
         ]
           .join(" ")
@@ -82,33 +74,22 @@ export default function LiveContactsListPage() {
     }
 
     return r;
-  }, [
-    rows,
-    search,
-    showCompleted,
-    assignmentFilter,
-    priorityFilter,
-  ]);
+  }, [rows, search, assignmentFilter, priorityFilter]);
 
   /**
-   * Sorting
+   * Kanban Buckets
    */
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
+  const newItems = filtered.filter(
+    (r) => r.followUpStatus === "NEW"
+  );
 
-    copy.sort((a, b) => {
-      const aDate = a.updatedAt ?? a.createdAt;
-      const bDate = b.updatedAt ?? b.createdAt;
+  const inProgressItems = filtered.filter(
+    (r) => r.followUpStatus === "IN_PROGRESS"
+  );
 
-      if (sortKey === "NEWEST") {
-        return aDate > bDate ? -1 : 1;
-      }
-
-      return aDate > bDate ? 1 : -1;
-    });
-
-    return copy;
-  }, [filtered, sortKey]);
+  const completedItems = filtered.filter(
+    (r) => r.followUpStatus === "COMPLETED"
+  );
 
   const modeColor =
     mode === "server"
@@ -117,25 +98,24 @@ export default function LiveContactsListPage() {
 
   return (
     <Container className="py-8">
-      <div className="mx-auto w-full max-w-6xl px-4">
+      <div className="mx-auto w-full max-w-7xl px-4">
         <Card>
           <CardHeader
-            title="Follow-Up Operations Board"
+            title="Campaign Operations Command Board"
             subtitle={
               mode === "server"
-                ? "Global campaign board (Supabase)"
-                : "Local fallback board (IndexedDB)"
+                ? "Realtime Global Operations"
+                : "Local Fallback Mode"
             }
           />
 
           <CardContent className="space-y-6">
 
-            {/* Control Panel */}
+            {/* Top Bar */}
             <div className="rounded-2xl border p-5 bg-white shadow-sm space-y-4">
 
-              {/* Stats */}
               <div className="flex flex-wrap items-center gap-4 text-sm">
-                <span><strong>{stats.pending}</strong> pending</span>
+                <span><strong>{stats.pending}</strong> active</span>
                 <span><strong>{stats.completed}</strong> completed</span>
                 <span><strong>{stats.total}</strong> total</span>
 
@@ -152,25 +132,13 @@ export default function LiveContactsListPage() {
                 </span>
               </div>
 
-              {/* Controls */}
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center flex-wrap">
+              <div className="flex flex-wrap gap-3">
 
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, email, phone, initials, notes…"
+                  placeholder="Search contact, notes, assignment…"
                 />
-
-                <select
-                  value={sortKey}
-                  onChange={(e) =>
-                    setSortKey(e.target.value as SortKey)
-                  }
-                  className="rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value="NEWEST">Newest first</option>
-                  <option value="OLDEST">Oldest first</option>
-                </select>
 
                 <select
                   value={assignmentFilter}
@@ -200,26 +168,11 @@ export default function LiveContactsListPage() {
                   <option value="URGENT">Urgent</option>
                 </select>
 
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setShowCompleted((v) => !v)}
-                >
-                  {showCompleted
-                    ? "Hide Completed"
-                    : "Show Completed"}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={refresh}
-                >
+                <Button variant="secondary" onClick={refresh}>
                   Refresh
                 </Button>
 
                 <Button
-                  type="button"
                   variant="secondary"
                   onClick={() => nav("/live-contact")}
                 >
@@ -228,7 +181,6 @@ export default function LiveContactsListPage() {
               </div>
             </div>
 
-            {/* Loading / Error */}
             {loading && (
               <div className="text-sm text-slate-600">
                 Loading follow-ups…
@@ -237,33 +189,73 @@ export default function LiveContactsListPage() {
 
             {error && <ErrorText>{error}</ErrorText>}
 
-            {!loading && sorted.length === 0 && (
-              <div className="rounded-xl border p-5 bg-slate-50">
-                <p>No follow-ups found.</p>
-                <HelpText>
-                  Intake submissions should create entries here automatically.
-                </HelpText>
-              </div>
-            )}
+            {/* Kanban Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Rows */}
-            <div className="space-y-4">
-              {sorted.map((row: UnifiedRow) => (
-                <FollowUpRow
-                  key={row.id}
-                  row={row}
-                  onUpdate={updateItem}
-                />
-              ))}
+              <KanbanColumn
+                title="New"
+                items={newItems}
+                updateItem={updateItem}
+              />
+
+              <KanbanColumn
+                title="In Progress"
+                items={inProgressItems}
+                updateItem={updateItem}
+              />
+
+              <KanbanColumn
+                title="Completed"
+                items={completedItems}
+                updateItem={updateItem}
+              />
             </div>
 
             <p className="text-xs text-slate-500">
-              Protocol: Every intake must generate a follow-up entry.
+              Protocol: Every intake must generate a follow-up.
               SLA escalation automatically highlights neglected items.
             </p>
+
           </CardContent>
         </Card>
       </div>
     </Container>
+  );
+}
+
+function KanbanColumn({
+  title,
+  items,
+  updateItem,
+}: {
+  title: string;
+  items: UnifiedRow[];
+  updateItem: any;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4 border space-y-4 min-h-[300px]">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-slate-800">
+          {title}
+        </h3>
+        <span className="text-xs font-semibold bg-slate-200 px-2 py-1 rounded-full">
+          {items.length}
+        </span>
+      </div>
+
+      {items.length === 0 && (
+        <div className="text-xs text-slate-400">
+          No items
+        </div>
+      )}
+
+      {items.map((row) => (
+        <FollowUpRow
+          key={row.id}
+          row={row}
+          onUpdate={updateItem}
+        />
+      ))}
+    </div>
   );
 }
