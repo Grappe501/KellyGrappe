@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Container from "../shared/components/Container";
 import { Card, CardHeader, CardContent } from "../shared/components/Card";
 import { Button } from "../shared/components/FormControls";
+import { ROUTES } from "../App";
 
 type Hint = { title: string; fix: string };
 
@@ -38,7 +39,7 @@ export default function NotFoundPage() {
       }
     }
 
-    // Common “double slash / trailing slash” issues
+    // Common URL issues
     if (attempted.includes("//")) {
       out.push({
         title: "The URL contains a double slash.",
@@ -62,6 +63,15 @@ export default function NotFoundPage() {
     return out;
   }, [attempted]);
 
+  function copyAttemptedUrl() {
+    try {
+      const full = `${window.location.origin}${attempted}`;
+      void navigator.clipboard?.writeText(full);
+    } catch {
+      // best-effort only
+    }
+  }
+
   return (
     <Container>
       <Card>
@@ -82,12 +92,16 @@ export default function NotFoundPage() {
             ))}
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-wrap gap-3 pt-2">
             <Button onClick={() => navigate(-1)}>Go Back</Button>
 
-            <Link to="/">
+            <Link to={ROUTES.ROOT}>
               <Button variant="secondary">Return Home</Button>
             </Link>
+
+            <Button variant="secondary" onClick={copyAttemptedUrl}>
+              Copy URL
+            </Button>
           </div>
         </CardContent>
       </Card>
