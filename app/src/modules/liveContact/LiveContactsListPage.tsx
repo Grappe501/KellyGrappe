@@ -11,11 +11,17 @@ import {
   Input,
 } from "../../shared/components/FormControls";
 
-import { useFollowUps, type UnifiedRow } from "./hooks/useFollowUps";
+import {
+  useFollowUps,
+  type UnifiedRow,
+  type SLALevel,
+  slaSeverityRank,
+} from "./hooks/useFollowUps";
+
 import FollowUpRow from "./components/FollowUpRow";
 
 type AssignmentFilter = "ALL" | "UNASSIGNED" | "MINE";
-type PriorityFilter = "ALL" | "WATCH" | "URGENT";
+type SLAFilter = "ALL" | "WATCH" | "URGENT" | "CRITICAL";
 
 const CURRENT_USER = "Me";
 
@@ -35,12 +41,13 @@ export default function LiveContactsListPage() {
   const [search, setSearch] = useState("");
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("ALL");
-  const [priorityFilter, setPriorityFilter] =
-    useState<PriorityFilter>("ALL");
+  const [slaFilter, setSlaFilter] =
+    useState<SLAFilter>("ALL");
 
-  /**
-   * Base filtering
-   */
+  /* ------------------------------------------------------------------ */
+  /* Filtering                                                          */
+  /* ------------------------------------------------------------------ */
+
   const filtered = useMemo(() => {
     let r = rows.filter((x) => !x.archived);
 
@@ -52,8 +59,8 @@ export default function LiveContactsListPage() {
       r = r.filter((x) => x.assignedTo === CURRENT_USER);
     }
 
-    if (priorityFilter !== "ALL") {
-      r = r.filter((x) => x.priority === priorityFilter);
+    if (slaFilter !== "ALL") {
+      r = r.filter((x) => x.slaLevel === slaFilter);
     }
 
     if (search.trim()) {
@@ -74,21 +81,52 @@ export default function LiveContactsListPage() {
     }
 
     return r;
-  }, [rows, search, assignmentFilter, priorityFilter]);
+  }, [rows, search, assignmentFilter, slaFilter]);
 
-  /**
-   * Kanban Buckets
-   */
-  const newItems = filtered.filter(
-    (r) => r.followUpStatus === "NEW"
+  /* ------------------------------------------------------------------ */
+  /* Severity + Age Sorting (floats CRITICAL automatically)            */
+  /* ------------------------------------------------------------------ */
+
+  function sortBySeverity(items: UnifiedRow[]) {
+    return [...items].sort((a, b) => {
+      const rankDiff =
+        slaSeverityRank(b.slaLevel) -
+        slaSeverityRank(a.slaLevel);
+
+      if (rankDiff !== 0) return rankDiff;
+
+      if (b.ageHours !== a.ageHours) {
+        return b.ageHours - a.ageHours;
+      }
+
+      const aDate = a.updatedAt ?? a.createdAt;
+      const bDate = b.updatedAt ?? b.createdAt;
+
+      if (aDate === bDate) return 0;
+      return aDate > bDate ? -1 : 1;
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Kanban Buckets                                                     */
+  /* ------------------------------------------------------------------ */
+
+  const newItems = sortBySeverity(
+    filtered.filter(
+      (r) => r.followUpStatus === "NEW"
+    )
   );
 
-  const inProgressItems = filtered.filter(
-    (r) => r.followUpStatus === "IN_PROGRESS"
+  const inProgressItems = sortBySeverity(
+    filtered.filter(
+      (r) => r.followUpStatus === "IN_PROGRESS"
+    )
   );
 
-  const completedItems = filtered.filter(
-    (r) => r.followUpStatus === "COMPLETED"
+  const completedItems = sortBySeverity(
+    filtered.filter(
+      (r) => r.followUpStatus === "COMPLETED"
+    )
   );
 
   const modeColor =
@@ -110,33 +148,42 @@ export default function LiveContactsListPage() {
           />
 
           <CardContent className="space-y-6">
-
             {/* Top Bar */}
             <div className="rounded-2xl border p-5 bg-white shadow-sm space-y-4">
 
               <div className="flex flex-wrap items-center gap-4 text-sm">
-                <span><strong>{stats.pending}</strong> active</span>
-                <span><strong>{stats.completed}</strong> completed</span>
-                <span><strong>{stats.total}</strong> total</span>
+                <span>
+                  <strong>{stats.pending}</strong> active
+                </span>
+                <span>
+                  <strong>{stats.completed}</strong> completed
+                </span>
+                <span>
+                  <strong>{stats.total}</strong> total
+                </span>
 
                 {mode === "local" && (
                   <span>
-                    <strong>{stats.pendingSync}</strong> pending sync
+                    <strong>{stats.pendingSync}</strong>{" "}
+                    pending sync
                   </span>
                 )}
 
                 <span
                   className={`ml-auto rounded-full px-3 py-1 text-xs font-semibold ${modeColor}`}
                 >
-                  {mode === "server" ? "GLOBAL" : "LOCAL MODE"}
+                  {mode === "server"
+                    ? "GLOBAL"
+                    : "LOCAL MODE"}
                 </span>
               </div>
 
               <div className="flex flex-wrap gap-3">
-
                 <Input
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) =>
+                    setSearch(e.target.value)
+                  }
                   placeholder="Search contact, notes, assignment…"
                 />
 
@@ -149,32 +196,52 @@ export default function LiveContactsListPage() {
                   }
                   className="rounded-xl border px-3 py-2 text-sm"
                 >
-                  <option value="ALL">All Assignments</option>
-                  <option value="UNASSIGNED">Unassigned</option>
-                  <option value="MINE">My Items</option>
+                  <option value="ALL">
+                    All Assignments
+                  </option>
+                  <option value="UNASSIGNED">
+                    Unassigned
+                  </option>
+                  <option value="MINE">
+                    My Items
+                  </option>
                 </select>
 
                 <select
-                  value={priorityFilter}
+                  value={slaFilter}
                   onChange={(e) =>
-                    setPriorityFilter(
-                      e.target.value as PriorityFilter
+                    setSlaFilter(
+                      e.target.value as SLAFilter
                     )
                   }
                   className="rounded-xl border px-3 py-2 text-sm"
                 >
-                  <option value="ALL">All Priority</option>
-                  <option value="WATCH">Watch</option>
-                  <option value="URGENT">Urgent</option>
+                  <option value="ALL">
+                    All SLA Levels
+                  </option>
+                  <option value="WATCH">
+                    WATCH
+                  </option>
+                  <option value="URGENT">
+                    URGENT
+                  </option>
+                  <option value="CRITICAL">
+                    CRITICAL
+                  </option>
                 </select>
 
-                <Button variant="secondary" onClick={refresh}>
+                <Button
+                  variant="secondary"
+                  onClick={refresh}
+                >
                   Refresh
                 </Button>
 
                 <Button
                   variant="secondary"
-                  onClick={() => nav("/live-contact")}
+                  onClick={() =>
+                    nav("/live-contact")
+                  }
                 >
                   Add Contact
                 </Button>
@@ -189,9 +256,18 @@ export default function LiveContactsListPage() {
 
             {error && <ErrorText>{error}</ErrorText>}
 
+            {!loading && filtered.length === 0 && (
+              <div className="rounded-xl border p-5 bg-slate-50">
+                <p>No follow-ups found.</p>
+                <HelpText>
+                  Intake submissions should create
+                  entries here automatically.
+                </HelpText>
+              </div>
+            )}
+
             {/* Kanban Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
               <KanbanColumn
                 title="New"
                 items={newItems}
@@ -212,16 +288,20 @@ export default function LiveContactsListPage() {
             </div>
 
             <p className="text-xs text-slate-500">
-              Protocol: Every intake must generate a follow-up.
-              SLA escalation automatically highlights neglected items.
+              Protocol: Every intake must generate a
+              follow-up. CRITICAL items float to the
+              top automatically.
             </p>
-
           </CardContent>
         </Card>
       </div>
     </Container>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Column Component                                                   */
+/* ------------------------------------------------------------------ */
 
 function KanbanColumn({
   title,
