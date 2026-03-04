@@ -14,8 +14,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--legacy-peer-deps"
   NPM_VERSION = "10"
+  NPM_FLAGS = "--legacy-peer-deps"
 
 # ----------------------------------------------------
 # SPA Routing (React Router)
@@ -27,7 +27,7 @@
   status = 200
 
 # ----------------------------------------------------
-# Optional Security Headers (recommended)
+# Security Headers
 # ----------------------------------------------------
 
 [[headers]]
@@ -39,7 +39,7 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
 # ----------------------------------------------------
-# Cache Static Assets (improves performance)
+# Static Asset Caching (Vite bundles)
 # ----------------------------------------------------
 
 [[headers]]
@@ -48,7 +48,7 @@
     Cache-Control = "public, max-age=31536000, immutable"
 
 # ----------------------------------------------------
-# Cache Service Worker Correctly
+# Service Worker Cache Control
 # ----------------------------------------------------
 
 [[headers]]
@@ -57,15 +57,15 @@
     Cache-Control = "no-cache"
 
 # ----------------------------------------------------
-# Netlify Functions Config
+# Netlify Functions
 # ----------------------------------------------------
 
 [functions]
-  node_bundler = "esbuild"
   directory = "app/netlify/functions"
+  node_bundler = "esbuild"
 
 # ----------------------------------------------------
-# Future Edge Functions Support
+# Future Edge Functions
 # ----------------------------------------------------
 
 [edge_functions]
