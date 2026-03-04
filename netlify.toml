@@ -5,8 +5,7 @@
 [build]
   base = "app"
   command = "npm run build"
-  publish = "app/dist"
-  functions = "app/netlify/functions"
+  publish = "dist"
 
 # ----------------------------------------------------
 # Environment Settings
@@ -16,6 +15,14 @@
   NODE_VERSION = "20"
   NPM_VERSION = "10"
   NPM_FLAGS = "--legacy-peer-deps"
+
+# ----------------------------------------------------
+# Netlify Functions
+# ----------------------------------------------------
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 # ----------------------------------------------------
 # SPA Routing (React Router)
@@ -55,11 +62,3 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
-
-# ----------------------------------------------------
-# Netlify Functions
-# ----------------------------------------------------
-
-[functions]
-  directory = "app/netlify/functions"
-  node_bundler = "esbuild"
