@@ -63,9 +63,3 @@
 [functions]
   directory = "app/netlify/functions"
   node_bundler = "esbuild"
-
-# ----------------------------------------------------
-# Future Edge Functions
-# ----------------------------------------------------
-
-[edge_functions]
