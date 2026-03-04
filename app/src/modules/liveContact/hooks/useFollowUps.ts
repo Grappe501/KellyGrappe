@@ -1,6 +1,6 @@
 // app/src/modules/liveContact/hooks/useFollowUps.ts
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   listLiveFollowUps,
@@ -18,8 +18,17 @@ const supabase =
 
 export type FollowUpStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 export type BoardMode = "server" | "local";
-export type PriorityLevel = "NONE" | "WATCH" | "URGENT";
 export type SyncStatus = "PENDING_SYNC" | "SYNCED" | "ERROR";
+
+/**
+ * SLA tiers (computed)
+ * - NORMAL: within first window
+ * - WATCH: needs attention soon
+ * - URGENT: overdue
+ * - CRITICAL: severely overdue
+ * - NONE: completed / not applicable
+ */
+export type SLALevel = "NORMAL" | "WATCH" | "URGENT" | "CRITICAL" | "NONE";
 
 export type UnifiedRow = {
   id: string;
@@ -44,11 +53,14 @@ export type UnifiedRow = {
   lastSyncAttemptAt: string | null;
   lastSyncError: string | null;
 
-  assignedTo: string | null; // 🔥 REAL NOW
-  priority: PriorityLevel;
+  assignedTo: string | null; // free-text name for now
   optimistic: boolean;
 
   entryInitials: string | null;
+
+  // 🔥 Computed SLA fields
+  slaLevel: SLALevel;
+  ageHours: number; // effective age in hours (includes escalation intelligence multiplier)
 };
 
 type Stats = {
@@ -62,27 +74,70 @@ function hoursBetween(a: Date, b: Date) {
   return (b.getTime() - a.getTime()) / (1000 * 60 * 60);
 }
 
-function calculatePriority(row: UnifiedRow): PriorityLevel {
-  if (row.followUpStatus === "COMPLETED") return "NONE";
+export function slaSeverityRank(level: SLALevel): number {
+  switch (level) {
+    case "CRITICAL":
+      return 4;
+    case "URGENT":
+      return 3;
+    case "WATCH":
+      return 2;
+    case "NORMAL":
+      return 1;
+    case "NONE":
+    default:
+      return 0;
+  }
+}
+
+/**
+ * COMPUTED SLA ENGINE
+ *
+ * NEW timing:
+ * - NORMAL: < 24h
+ * - WATCH:  >= 24h
+ * - URGENT: >= 48h
+ * - CRITICAL: >= 72h
+ *
+ * IN_PROGRESS timing (time since last update):
+ * - NORMAL: < 48h
+ * - WATCH:  >= 48h
+ * - URGENT: >= 96h
+ * - CRITICAL: >= 120h
+ *
+ * Escalation Intelligence:
+ * - Unassigned items age faster (multiplier)
+ */
+function computeSLA(row: UnifiedRow): { level: SLALevel; ageHours: number } {
+  if (row.followUpStatus === "COMPLETED") {
+    return { level: "NONE", ageHours: 0 };
+  }
 
   const now = new Date();
   const created = new Date(row.createdAt);
   const updated = row.updatedAt ? new Date(row.updatedAt) : created;
 
-  const ageHours = hoursBetween(created, now);
-  const sinceUpdate = hoursBetween(updated, now);
+  const baseAge =
+    row.followUpStatus === "NEW"
+      ? hoursBetween(created, now)
+      : hoursBetween(updated, now);
+
+  // 🔥 Escalation Intelligence: unassigned items age faster
+  const multiplier = row.assignedTo ? 1 : 1.25;
+  const effectiveAge = baseAge * multiplier;
 
   if (row.followUpStatus === "NEW") {
-    if (ageHours >= 48) return "URGENT";
-    if (ageHours >= 24) return "WATCH";
+    if (effectiveAge >= 72) return { level: "CRITICAL", ageHours: effectiveAge };
+    if (effectiveAge >= 48) return { level: "URGENT", ageHours: effectiveAge };
+    if (effectiveAge >= 24) return { level: "WATCH", ageHours: effectiveAge };
+    return { level: "NORMAL", ageHours: effectiveAge };
   }
 
-  if (row.followUpStatus === "IN_PROGRESS") {
-    if (sinceUpdate >= 120) return "URGENT";
-    if (sinceUpdate >= 72) return "WATCH";
-  }
-
-  return "NONE";
+  // IN_PROGRESS
+  if (effectiveAge >= 120) return { level: "CRITICAL", ageHours: effectiveAge };
+  if (effectiveAge >= 96) return { level: "URGENT", ageHours: effectiveAge };
+  if (effectiveAge >= 48) return { level: "WATCH", ageHours: effectiveAge };
+  return { level: "NORMAL", ageHours: effectiveAge };
 }
 
 function nowIso() {
@@ -91,10 +146,20 @@ function nowIso() {
 
 function isSyncedLike(row: LiveFollowUp): SyncStatus {
   const s = (row as any).syncStatus;
-  if (s === "SYNCED" || s === "ERROR" || s === "PENDING_SYNC") {
-    return s;
-  }
+  if (s === "SYNCED" || s === "ERROR" || s === "PENDING_SYNC") return s;
   return "PENDING_SYNC";
+}
+
+/**
+ * Normalize DB record -> UnifiedRow (and compute SLA)
+ */
+function toUnifiedRow(base: UnifiedRow): UnifiedRow {
+  const { level, ageHours } = computeSLA(base);
+  return {
+    ...base,
+    slaLevel: level,
+    ageHours,
+  };
 }
 
 export function useFollowUps() {
@@ -110,42 +175,47 @@ export function useFollowUps() {
 
     return local
       .filter((r) => !r.archived)
-      .map((r): UnifiedRow => ({
-        id: r.id,
-        mode: "local",
+      .map((r): UnifiedRow => {
+        const base: UnifiedRow = {
+          id: r.id,
+          mode: "local",
 
-        name: r.name ?? "Unnamed Contact",
-        email: r.email ?? "",
-        phone: r.phone ?? "",
-        source: r.source ?? "",
+          name: r.name ?? "Unnamed Contact",
+          email: r.email ?? "",
+          phone: r.phone ?? "",
+          source: r.source ?? "",
 
-        followUpStatus: r.followUpStatus,
-        followUpNotes: r.followUpNotes ?? "",
-        followUpCompletedAt: r.followUpCompletedAt ?? null,
+          followUpStatus: r.followUpStatus,
+          followUpNotes: r.followUpNotes ?? "",
+          followUpCompletedAt: r.followUpCompletedAt ?? null,
 
-        createdAt: r.createdAt,
-        updatedAt: (r as any).updatedAt ?? null,
+          createdAt: r.createdAt,
+          updatedAt: (r as any).updatedAt ?? null,
 
-        archived: !!r.archived,
+          archived: !!r.archived,
 
-        syncStatus: isSyncedLike(r),
-        serverId: (r as any).serverId ?? null,
-        lastSyncAttemptAt: (r as any).lastSyncAttemptAt ?? null,
-        lastSyncError: (r as any).lastSyncError ?? null,
+          syncStatus: isSyncedLike(r),
+          serverId: (r as any).serverId ?? null,
+          lastSyncAttemptAt: (r as any).lastSyncAttemptAt ?? null,
+          lastSyncError: (r as any).lastSyncError ?? null,
 
-        assignedTo: (r as any).assignedTo ?? null,
-        priority: "NONE",
-        optimistic: false,
+          assignedTo: (r as any).assignedTo ?? null,
+          optimistic: false,
 
-        entryInitials: (r as any).entryInitials ?? null,
-      }));
+          entryInitials: (r as any).entryInitials ?? null,
+
+          slaLevel: "NORMAL",
+          ageHours: 0,
+        };
+
+        return toUnifiedRow(base);
+      });
   }
 
   async function refresh() {
     try {
       setLoading(true);
       setError(null);
-
       const localRows = await loadLocal();
       setRows(localRows);
     } catch (err: any) {
@@ -155,19 +225,16 @@ export function useFollowUps() {
     }
   }
 
+  // 🔥 Recompute SLA every minute (keeps board “alive”)
   useEffect(() => {
     const interval = setInterval(() => {
-      setRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          priority: calculatePriority(r),
-        }))
-      );
+      setRows((prev) => prev.map((r) => toUnifiedRow(r)));
     }, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
+  // Realtime subscription (server mode)
   useEffect(() => {
     refresh();
 
@@ -184,7 +251,7 @@ export function useFollowUps() {
 
           setMode("server");
 
-          const unified: UnifiedRow = {
+          const base: UnifiedRow = {
             id: record.id,
             mode: "server",
 
@@ -208,76 +275,72 @@ export function useFollowUps() {
             lastSyncError: null,
 
             assignedTo: record.assigned_to ?? null,
-            priority: "NONE",
             optimistic: false,
 
             entryInitials: record.entry_initials ?? null,
+
+            slaLevel: "NORMAL",
+            ageHours: 0,
           };
 
-          unified.priority = calculatePriority(unified);
+          const unified = toUnifiedRow(base);
 
           setRows((prev) => {
-            const exists = prev.find((r) => r.id === unified.id);
-            if (exists) {
-              return prev.map((r) =>
-                r.id === unified.id ? unified : r
-              );
-            }
+            const exists = prev.some((r) => r.id === unified.id);
+            if (exists) return prev.map((r) => (r.id === unified.id ? unified : r));
             return [unified, ...prev];
           });
         }
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setMode("server");
-        }
+        if (status === "SUBSCRIBED") setMode("server");
       });
 
     channelRef.current = channel;
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, []);
 
   async function updateItem(row: UnifiedRow, patch: Partial<UnifiedRow>) {
     const dbPatch: any = { ...patch };
 
-    // Map frontend → DB column
+    // Map frontend -> DB column
     if ("assignedTo" in patch) {
       dbPatch.assigned_to = patch.assignedTo;
       delete dbPatch.assignedTo;
     }
 
+    // Strip computed fields if someone accidentally passes them
+    delete dbPatch.slaLevel;
+    delete dbPatch.ageHours;
+
     setRows((prev) =>
       prev.map((r) =>
         r.id === row.id
-          ? {
+          ? toUnifiedRow({
               ...r,
               ...patch,
               optimistic: true,
               updatedAt: nowIso(),
-            }
+            })
           : r
       )
     );
 
     try {
+      // NOTE: contactsDb should handle local vs server routing internally
       await updateLiveFollowUp(row.id, dbPatch);
 
       setRows((prev) =>
         prev.map((r) =>
           r.id === row.id
-            ? {
+            ? toUnifiedRow({
                 ...r,
+                ...patch,
                 optimistic: false,
-                priority: calculatePriority({
-                  ...r,
-                  ...patch,
-                }),
-              }
+              })
             : r
         )
       );
@@ -290,17 +353,9 @@ export function useFollowUps() {
   const stats: Stats = useMemo(() => {
     return {
       total: rows.length,
-      pending: rows.filter(
-        (r) => r.followUpStatus !== "COMPLETED"
-      ).length,
-      completed: rows.filter(
-        (r) => r.followUpStatus === "COMPLETED"
-      ).length,
-      pendingSync: rows.filter(
-        (r) =>
-          r.mode === "local" &&
-          r.syncStatus !== "SYNCED"
-      ).length,
+      pending: rows.filter((r) => r.followUpStatus !== "COMPLETED").length,
+      completed: rows.filter((r) => r.followUpStatus === "COMPLETED").length,
+      pendingSync: rows.filter((r) => r.mode === "local" && r.syncStatus !== "SYNCED").length,
     };
   }, [rows]);
 

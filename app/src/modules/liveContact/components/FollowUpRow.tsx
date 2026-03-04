@@ -1,10 +1,11 @@
 // app/src/modules/liveContact/components/FollowUpRow.tsx
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   Button,
   Label,
   Textarea,
+  Input,
 } from "../../../shared/components/FormControls";
 import type { UnifiedRow } from "../hooks/useFollowUps";
 
@@ -15,14 +16,12 @@ type Props = {
   onUpdate: (row: UnifiedRow, patch: any) => Promise<void>;
 };
 
-/**
- * Replace with real auth later
- */
 const CURRENT_USER = "Me";
 
-/**
- * Status badge styles
- */
+/* ------------------------------------------------------------------ */
+/* Styling Helpers */
+/* ------------------------------------------------------------------ */
+
 function statusBadge(status: FollowUpStatus) {
   switch (status) {
     case "NEW":
@@ -34,11 +33,25 @@ function statusBadge(status: FollowUpStatus) {
   }
 }
 
-/**
- * SLA priority shell styles
- */
-function priorityShell(priority: string) {
-  switch (priority) {
+function slaBadge(level: string) {
+  switch (level) {
+    case "CRITICAL":
+      return "bg-rose-600 text-white animate-pulse";
+    case "URGENT":
+      return "bg-rose-100 text-rose-800";
+    case "WATCH":
+      return "bg-amber-100 text-amber-900";
+    case "NORMAL":
+      return "bg-slate-100 text-slate-800";
+    default:
+      return "hidden";
+  }
+}
+
+function slaShell(level: string) {
+  switch (level) {
+    case "CRITICAL":
+      return "border-rose-500 bg-rose-50 shadow-md";
     case "URGENT":
       return "border-rose-300 bg-rose-50";
     case "WATCH":
@@ -48,9 +61,6 @@ function priorityShell(priority: string) {
   }
 }
 
-/**
- * Sync state indicator
- */
 function syncBadge(syncStatus: string) {
   switch (syncStatus) {
     case "SYNCED":
@@ -62,10 +72,29 @@ function syncBadge(syncStatus: string) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Component */
+/* ------------------------------------------------------------------ */
+
 const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
   const [saving, setSaving] = useState(false);
+  const [assigneeDraft, setAssigneeDraft] = useState(row.assignedTo ?? "");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiInsight, setAiInsight] = useState<any>(null);
+  const [showInsight, setShowInsight] = useState(false);
 
   const notesId = `notes-${row.id}`;
+
+  const recentAssignees = useMemo(() => {
+    const raw = localStorage.getItem("recentAssignees");
+    return raw ? JSON.parse(raw) : [];
+  }, []);
+
+  const saveRecentAssignee = (name: string) => {
+    const existing = recentAssignees.filter((n: string) => n !== name);
+    const updated = [name, ...existing].slice(0, 5);
+    localStorage.setItem("recentAssignees", JSON.stringify(updated));
+  };
 
   const update = useCallback(
     async (patch: any) => {
@@ -79,21 +108,51 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
     [row, onUpdate]
   );
 
-  const handleStatusChange = useCallback(
-    async (status: FollowUpStatus) => {
-      await update({
-        followUpStatus: status,
-        followUpCompletedAt:
-          status === "COMPLETED" ? new Date().toISOString() : null,
+  const handleStatusChange = async (status: FollowUpStatus) => {
+    await update({
+      followUpStatus: status,
+      followUpCompletedAt:
+        status === "COMPLETED" ? new Date().toISOString() : null,
+    });
+  };
+
+  const handleAssignmentBlur = async () => {
+    const trimmed = assigneeDraft.trim();
+    await update({ assignedTo: trimmed || null });
+    if (trimmed) saveRecentAssignee(trimmed);
+  };
+
+  const generateInsight = async () => {
+    try {
+      setAiLoading(true);
+      setShowInsight(true);
+
+      const res = await fetch("/.netlify/functions/followup-ai", {
+        method: "POST",
+        body: JSON.stringify({
+          name: row.name,
+          notes: row.followUpNotes,
+          status: row.followUpStatus,
+          slaLevel: row.slaLevel,
+          ageHours: row.ageHours,
+          source: row.source,
+          assignedTo: row.assignedTo,
+        }),
       });
-    },
-    [update]
-  );
+
+      const data = await res.json();
+      setAiInsight(data);
+    } catch (err) {
+      setAiInsight({ error: "AI generation failed." });
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   return (
     <div
-      className={`rounded-2xl border p-5 shadow-sm transition ${priorityShell(
-        row.priority
+      className={`rounded-2xl border p-5 shadow-sm transition ${slaShell(
+        row.slaLevel
       )}`}
     >
       {/* Header */}
@@ -112,11 +171,17 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
               {row.source} • {row.mode === "server" ? "Global" : "Local"}
             </span>
 
-            {row.priority !== "NONE" && (
-              <span className="text-xs font-semibold text-rose-700">
-                {row.priority}
-              </span>
-            )}
+            <span
+              className={`text-xs font-semibold px-2 py-1 rounded-full ${slaBadge(
+                row.slaLevel
+              )}`}
+            >
+              {row.slaLevel}
+            </span>
+
+            <span className="text-xs text-slate-500">
+              {row.ageHours.toFixed(1)} hrs
+            </span>
 
             {row.optimistic && (
               <span className="text-xs text-indigo-600 font-semibold">
@@ -129,23 +194,52 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
                 className={`text-xs font-semibold ${syncBadge(
                   row.syncStatus
                 )}`}
-                title={row.lastSyncError ?? undefined}
               >
                 {row.syncStatus}
               </span>
             )}
           </div>
 
-          {/* Assignment */}
+          {/* Assignment Editable */}
           <div className="mt-2 text-xs">
-            {row.assignedTo ? (
-              <span className="font-semibold text-indigo-700">
-                Assigned to: {row.assignedTo}
-              </span>
-            ) : (
-              <span className="text-slate-400">
-                Unassigned
-              </span>
+            <Label htmlFor={`assign-${row.id}`}>Assigned To</Label>
+            <Input
+              id={`assign-${row.id}`}
+              value={assigneeDraft}
+              onChange={(e) => setAssigneeDraft(e.target.value)}
+              onBlur={handleAssignmentBlur}
+              placeholder="Enter name..."
+            />
+
+            {!row.assignedTo && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() =>
+                  update({ assignedTo: CURRENT_USER })
+                }
+              >
+                Assign to Me
+              </Button>
+            )}
+
+            {recentAssignees.length > 0 && (
+              <div className="flex gap-2 flex-wrap mt-2">
+                {recentAssignees.map((name: string) => (
+                  <Button
+                    key={name}
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setAssigneeDraft(name);
+                      update({ assignedTo: name });
+                    }}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </div>
             )}
           </div>
 
@@ -156,7 +250,7 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
           )}
         </div>
 
-        {/* Status + Assignment Actions */}
+        {/* Status Badge */}
         <div className="flex flex-col gap-2 items-end">
           <span
             className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(
@@ -165,43 +259,12 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
           >
             {row.followUpStatus}
           </span>
-
-          <div className="flex gap-2 flex-wrap justify-end">
-            {!row.assignedTo && (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={saving}
-                onClick={() =>
-                  update({ assignedTo: CURRENT_USER })
-                }
-              >
-                Assign to Me
-              </Button>
-            )}
-
-            {row.assignedTo && (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={saving}
-                onClick={() =>
-                  update({ assignedTo: null })
-                }
-              >
-                Unassign
-              </Button>
-            )}
-          </div>
         </div>
       </div>
 
       {/* Notes */}
       <div className="mt-4">
-        <Label htmlFor={notesId}>
-          Follow-up Notes
-        </Label>
-
+        <Label htmlFor={notesId}>Follow-up Notes</Label>
         <Textarea
           id={notesId}
           rows={3}
@@ -213,7 +276,7 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
         />
       </div>
 
-      {/* Status Actions */}
+      {/* Actions */}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           size="sm"
@@ -239,7 +302,48 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
         >
           Complete
         </Button>
+
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={generateInsight}
+          disabled={aiLoading}
+        >
+          {aiLoading ? "Analyzing…" : "Generate Insight"}
+        </Button>
       </div>
+
+      {/* AI Insight Panel (Ephemeral) */}
+      {showInsight && aiInsight && (
+        <div className="mt-4 rounded-xl border p-4 bg-slate-50 text-sm space-y-2">
+          {aiInsight.error && (
+            <div className="text-rose-600">
+              {aiInsight.error}
+            </div>
+          )}
+
+          {aiInsight.nextAction && (
+            <div>
+              <strong>Next Action:</strong>
+              <div>{aiInsight.nextAction}</div>
+            </div>
+          )}
+
+          {aiInsight.riskFlags && (
+            <div>
+              <strong>Risk Flags:</strong>
+              <div>{aiInsight.riskFlags}</div>
+            </div>
+          )}
+
+          {aiInsight.script && (
+            <div>
+              <strong>Suggested Script:</strong>
+              <div>{aiInsight.script}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {row.followUpStatus === "COMPLETED" &&
         row.followUpCompletedAt && (
