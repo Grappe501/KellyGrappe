@@ -152,6 +152,37 @@ export type Contact = {
   profilePhotoUrl?: string;
 };
 
+export type ContactDirectoryRow = {
+  id: string
+  fullName?: string
+  phone?: string
+  email?: string
+  city?: string
+  county?: string
+  tags?: string[]
+}
+
+export async function listContactsDirectoryRows(): Promise<ContactDirectoryRow[]> {
+  const db = await openDb()
+
+  const tx = db.transaction(STORE_CONTACTS, "readonly")
+  const store = tx.objectStore(STORE_CONTACTS)
+
+  const rows = await reqToPromise(store.getAll())
+
+  await txDone(tx)
+
+  return rows.map((c: Contact) => ({
+    id: c.id,
+    fullName: c.fullName,
+    phone: c.phone,
+    email: c.email,
+    city: c.city,
+    county: c.county,
+    tags: c.tags,
+  }))
+}
+
 export type ContactOrigin = {
   id: string; // uuid
   contactId: string;
@@ -1110,4 +1141,47 @@ export function parseCityCounty(raw: string): { city?: string; county?: string }
   if (parts.length === 1) return { city: parts[0] };
   if (parts.length >= 2) return { city: parts[0], county: parts[1] };
   return { city: v };
+}
+// ---------------- CONTACT HELPERS ----------------
+
+export async function getContactById(id: string): Promise<Contact | null> {
+  const db = await openDb()
+
+  const tx = db.transaction(STORE_CONTACTS, "readonly")
+  const store = tx.objectStore(STORE_CONTACTS)
+
+  const result = await reqToPromise(store.get(id))
+
+  await txDone(tx)
+
+  return result ?? null
+}
+
+export async function updateContact(
+  id: string,
+  patch: Partial<Contact>
+): Promise<Contact | null> {
+  const db = await openDb()
+
+  const tx = db.transaction(STORE_CONTACTS, "readwrite")
+  const store = tx.objectStore(STORE_CONTACTS)
+
+  const existing = await reqToPromise(store.get(id))
+
+  if (!existing) {
+    await txDone(tx)
+    return null
+  }
+
+  const next = {
+    ...existing,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  }
+
+  store.put(next)
+
+  await txDone(tx)
+
+  return next
 }
