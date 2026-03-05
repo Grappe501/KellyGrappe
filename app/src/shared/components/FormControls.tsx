@@ -10,7 +10,7 @@ export function Label({
   className,
 }: {
   children: React.ReactNode;
-  htmlFor: string;
+  htmlFor?: string; // <-- changed to optional
   className?: string;
 }) {
   return (
@@ -25,8 +25,10 @@ export function Label({
 
 const fieldBase =
   'mt-2 w-full rounded-xl bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400';
+
 const fieldRing =
   'border border-slate-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
+
 const fieldDisabled =
   'disabled:bg-slate-50 disabled:text-slate-500 disabled:placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200';
 
@@ -35,6 +37,7 @@ export const Input = forwardRef<
   React.InputHTMLAttributes<HTMLInputElement> & { className?: string }
 >(function Input(props, ref) {
   const { className, ...rest } = props;
+
   return (
     <input
       ref={ref}
@@ -43,6 +46,7 @@ export const Input = forwardRef<
     />
   );
 });
+
 Input.displayName = 'Input';
 
 export const Textarea = forwardRef<
@@ -50,14 +54,22 @@ export const Textarea = forwardRef<
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & { className?: string }
 >(function Textarea(props, ref) {
   const { className, ...rest } = props;
+
   return (
     <textarea
       ref={ref}
       {...rest}
-      className={cx(fieldBase, fieldRing, fieldDisabled, 'min-h-[120px]', className)}
+      className={cx(
+        fieldBase,
+        fieldRing,
+        fieldDisabled,
+        'min-h-[120px]',
+        className
+      )}
     />
   );
 });
+
 Textarea.displayName = 'Textarea';
 
 export const Select = forwardRef<
@@ -65,6 +77,7 @@ export const Select = forwardRef<
   React.SelectHTMLAttributes<HTMLSelectElement> & { className?: string }
 >(function Select(props, ref) {
   const { className, ...rest } = props;
+
   return (
     <select
       ref={ref}
@@ -73,6 +86,7 @@ export const Select = forwardRef<
     />
   );
 });
+
 Select.displayName = 'Select';
 
 export function HelpText({
@@ -96,7 +110,11 @@ export function ErrorText({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <p className={cx('mt-2 text-sm text-rose-700', className)}>{children}</p>;
+  return (
+    <p className={cx('mt-2 text-sm text-rose-700', className)}>
+      {children}
+    </p>
+  );
 }
 
 export function Button(
@@ -112,7 +130,10 @@ export function Button(
     'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white ' +
     'disabled:opacity-50 disabled:cursor-not-allowed';
 
-  const sizes = size === 'sm' ? 'px-3 py-2 text-sm' : 'px-4 py-3 text-sm';
+  const sizes =
+    size === 'sm'
+      ? 'px-3 py-2 text-sm'
+      : 'px-4 py-3 text-sm';
 
   const styles =
     variant === 'primary'

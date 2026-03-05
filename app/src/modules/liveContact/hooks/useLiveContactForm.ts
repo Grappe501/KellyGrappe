@@ -1,47 +1,58 @@
-import { useMemo, useState } from 'react';
-import type { LiveContactForm } from '../types/LiveContactForm';
-import { clampInitials, isEmailLike, normalizePhone, safeTrim, uniqTags } from '../utils/contactFormHelpers';
+import { useMemo, useState, useCallback } from "react";
+import type { LiveContactForm } from "../types/LiveContactForm";
 
+import {
+  clampInitials,
+  isEmailLike,
+  normalizePhone,
+  safeTrim,
+  uniqTags,
+} from "../utils/contactFormHelpers";
+
+/**
+ * Canonical default state for the Live Contact form.
+ * Kept separate so reset() can reuse it.
+ */
 export function defaultLiveContactForm(): LiveContactForm {
   return {
-    entryInitials: '',
-    fullName: '',
-    phone: '',
-    email: '',
+    entryInitials: "",
+    fullName: "",
+    phone: "",
+    email: "",
 
-    city: '',
-    county: '',
-    state: 'AR',
-    zip: '',
+    city: "",
+    county: "",
+    state: "AR",
+    zip: "",
 
-    precinct: '',
-    congressionalDistrict: '',
-    stateHouseDistrict: '',
-    stateSenateDistrict: '',
+    precinct: "",
+    congressionalDistrict: "",
+    stateHouseDistrict: "",
+    stateSenateDistrict: "",
 
-    category: '',
-    supportLevel: '',
-    bestContactMethod: '',
+    category: "",
+    supportLevel: "",
+    bestContactMethod: "",
     teamAssignments: [],
 
-    metWhere: '',
-    metWhereDetails: '',
-    eventName: '',
-    introducedBy: '',
-    organization: '',
+    metWhere: "",
+    metWhereDetails: "",
+    eventName: "",
+    introducedBy: "",
+    organization: "",
 
-    topIssue: '',
-    conversationNotes: '',
+    topIssue: "",
+    conversationNotes: "",
 
     facebookConnected: false,
-    facebookProfileName: '',
-    facebookHandle: '',
-    facebookUrl: '',
+    facebookProfileName: "",
+    facebookHandle: "",
+    facebookUrl: "",
 
-    instagramHandle: '',
-    twitterHandle: '',
-    linkedinUrl: '',
-    tiktokHandle: '',
+    instagramHandle: "",
+    twitterHandle: "",
+    linkedinUrl: "",
+    tiktokHandle: "",
 
     interestedVolunteer: false,
     interestedDonate: false,
@@ -50,53 +61,139 @@ export function defaultLiveContactForm(): LiveContactForm {
     interestedCountyLeader: false,
     interestedPrecinctCaptain: false,
 
-    influenceScore: '',
-    fundraisingPotential: '',
-    volunteerPotential: '',
+    influenceScore: "",
+    fundraisingPotential: "",
+    volunteerPotential: "",
 
     tags: [],
 
     permissionToContact: false,
     followUpNeeded: true,
-    followUpNotes: '',
-    followUpTargetAt: '',
+    followUpNotes: "",
+    followUpTargetAt: "",
 
-    profilePhotoDataUrl: '',
-    businessCardDataUrl: '',
-    contextPhotoDataUrl: '',
+    profilePhotoDataUrl: "",
+    businessCardDataUrl: "",
+    contextPhotoDataUrl: "",
   };
 }
 
+/**
+ * Hook controlling the Live Contact intake form.
+ * Optimized for:
+ * - fast canvassing entry
+ * - offline-first workflows
+ * - future CRM expansion
+ */
 export function useLiveContactForm() {
   const [form, setForm] = useState<LiveContactForm>(defaultLiveContactForm());
 
-  function update<K extends keyof LiveContactForm>(key: K, value: LiveContactForm[K]) {
-    setForm((p) => ({ ...p, [key]: value }));
-  }
+  /**
+   * Update a single field
+   */
+  const update = useCallback(
+    <K extends keyof LiveContactForm>(key: K, value: LiveContactForm[K]) => {
+      setForm((prev) => {
+        if (prev[key] === value) return prev;
+        return { ...prev, [key]: value };
+      });
+    },
+    []
+  );
 
-  const emailValid = useMemo(() => isEmailLike(form.email), [form.email]);
+  /**
+   * Batch update multiple fields
+   * Useful for business-card extraction or bulk updates.
+   */
+  const updateMany = useCallback(
+    (values: Partial<LiveContactForm>) => {
+      setForm((prev) => ({ ...prev, ...values }));
+    },
+    []
+  );
 
+  /**
+   * Reset the form
+   * Optionally preserve key fields (like initials).
+   */
+  const reset = useCallback(
+    (preserve?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>) => {
+      setForm({
+        ...defaultLiveContactForm(),
+        ...preserve,
+      });
+    },
+    []
+  );
+
+  /**
+   * Email validation
+   */
+  const emailValid = useMemo(() => {
+    if (!form.email) return true;
+    return isEmailLike(form.email);
+  }, [form.email]);
+
+  /**
+   * Fast readiness check for canvassing UX
+   */
   const readyToSave = useMemo(() => {
-    const hasContactMethod = !!safeTrim(form.phone) || !!safeTrim(form.email);
-    return form.entryInitials.length === 3 && !!safeTrim(form.fullName) && hasContactMethod && form.permissionToContact;
+    const hasIdentity = !!safeTrim(form.fullName);
+    const hasContactMethod =
+      !!safeTrim(form.phone) || !!safeTrim(form.email);
+
+    const initialsValid = form.entryInitials.length >= 2;
+
+    return (
+      initialsValid &&
+      hasIdentity &&
+      hasContactMethod &&
+      form.permissionToContact
+    );
   }, [form]);
 
+  /**
+   * Normalize values before DB save
+   */
   function normalizeBeforeSave(next: LiveContactForm): LiveContactForm {
     return {
       ...next,
+
       entryInitials: clampInitials(next.entryInitials),
+
       email: safeTrim(next.email).toLowerCase(),
-      phone: safeTrim(next.phone) ? normalizePhone(next.phone) : '',
+
+      phone: safeTrim(next.phone)
+        ? normalizePhone(next.phone)
+        : "",
+
       tags: uniqTags(next.tags || []),
+
       city: safeTrim(next.city),
       county: safeTrim(next.county),
       zip: safeTrim(next.zip),
+
       precinct: safeTrim(next.precinct),
       congressionalDistrict: safeTrim(next.congressionalDistrict),
       stateHouseDistrict: safeTrim(next.stateHouseDistrict),
       stateSenateDistrict: safeTrim(next.stateSenateDistrict),
+
+      organization: safeTrim(next.organization),
+      introducedBy: safeTrim(next.introducedBy),
+
+      conversationNotes: safeTrim(next.conversationNotes),
+      followUpNotes: safeTrim(next.followUpNotes),
     };
   }
 
-  return { form, setForm, update, readyToSave, emailValid, normalizeBeforeSave };
+  return {
+    form,
+    setForm,
+    update,
+    updateMany,
+    reset,
+    readyToSave,
+    emailValid,
+    normalizeBeforeSave,
+  };
 }

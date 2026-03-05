@@ -1,29 +1,111 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
     react(),
+
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      registerType: "autoUpdate",
+
+      includeAssets: [
+        "favicon.svg",
+        "robots.txt",
+        "apple-touch-icon.png"
+      ],
+
       manifest: {
-        name: 'Kelly Grappe Campaign',
-        short_name: 'KellyG',
-        description: 'Kelly Grappe for Secretary of State — Campaign Ops PWA',
-        theme_color: '#0b1220',
-        background_color: '#0b1220',
-        display: 'standalone',
-        start_url: '/',
+        name: "Kelly Grappe Campaign Operations",
+        short_name: "Grappe Ops",
+        description: "Campaign operations intelligence platform",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        scope: "/",
+        start_url: "/",
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }
+          {
+            src: "/pwa-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: "/pwa-512.png",
+            sizes: "512x512",
+            type: "image/png"
+          },
+          {
+            src: "/pwa-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable"
+          }
+        ]
+      },
+
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === "document",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "html-cache"
+            }
+          },
+
+          {
+            urlPattern: ({ request }) => request.destination === "script",
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "js-cache"
+            }
+          },
+
+          {
+            urlPattern: ({ request }) => request.destination === "style",
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "css-cache"
+            }
+          },
+
+          {
+            urlPattern: ({ request }) => request.destination === "image",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "image-cache",
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              }
+            }
+          }
         ]
       }
     })
   ],
-  server: {
-    port: 5173
+
+  build: {
+    target: "esnext",
+
+    sourcemap: false,
+
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          router: ["react-router-dom"]
+        }
+      }
+    }
+  },
+
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-router-dom"]
   }
 });

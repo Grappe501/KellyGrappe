@@ -3,18 +3,37 @@ import type {
   CampaignTeam,
   ContactCategory,
   SupportLevel,
-} from '../../../shared/utils/contactsDb';
+} from "../../../shared/utils/contactsDb";
 
+/**
+ * Canonical schema for the Live Contact intake form.
+ *
+ * This schema is optimized for:
+ * - fast canvassing entry
+ * - offline-first operation
+ * - compatibility with Contact + LiveFollowUp DB models
+ * - future CRM expansion
+ */
 export type LiveContactForm = {
-  // accountability
+  /* -------------------------------------------------------
+   ACCOUNTABILITY
+   ------------------------------------------------------- */
+
+  /** Initials of the staffer/volunteer entering the contact */
   entryInitials: string;
 
-  // identity
+  /* -------------------------------------------------------
+   CORE IDENTITY
+   ------------------------------------------------------- */
+
   fullName: string;
   phone: string;
   email: string;
 
-  // location
+  /* -------------------------------------------------------
+   LOCATION
+   ------------------------------------------------------- */
+
   city: string;
   county: string;
   state: string;
@@ -25,23 +44,49 @@ export type LiveContactForm = {
   stateHouseDistrict: string;
   stateSenateDistrict: string;
 
-  // campaign classification
-  category: ContactCategory | '';
-  supportLevel: SupportLevel | '';
-  bestContactMethod: BestContactMethod | '';
+  /* -------------------------------------------------------
+   CAMPAIGN CLASSIFICATION
+   ------------------------------------------------------- */
+
+  /** Voter, volunteer, influencer, donor, etc */
+  category: ContactCategory | "";
+
+  /** Strong support → opposed */
+  supportLevel: SupportLevel | "";
+
+  /** Preferred outreach method */
+  bestContactMethod: BestContactMethod | "";
+
+  /** Campaign team routing */
   teamAssignments: CampaignTeam[];
 
-  // context
+  /* -------------------------------------------------------
+   CONTEXT OF MEETING
+   ------------------------------------------------------- */
+
   metWhere: string;
   metWhereDetails: string;
+
   eventName: string;
   introducedBy: string;
+
+  /** Organization or group affiliation */
   organization: string;
 
+  /* -------------------------------------------------------
+   CONVERSATION
+   ------------------------------------------------------- */
+
+  /** Top issue mentioned by contact */
   topIssue: string;
+
+  /** Free-form notes from conversation */
   conversationNotes: string;
 
-  // social
+  /* -------------------------------------------------------
+   SOCIAL MEDIA
+   ------------------------------------------------------- */
+
   facebookConnected: boolean;
   facebookProfileName: string;
   facebookHandle: string;
@@ -52,30 +97,73 @@ export type LiveContactForm = {
   linkedinUrl: string;
   tiktokHandle: string;
 
-  // engagement signals
+  /* -------------------------------------------------------
+   ENGAGEMENT SIGNALS
+   ------------------------------------------------------- */
+
   interestedVolunteer: boolean;
   interestedDonate: boolean;
   interestedHostEvent: boolean;
   interestedYardSign: boolean;
+
   interestedCountyLeader: boolean;
   interestedPrecinctCaptain: boolean;
 
-  // scoring (optional)
-  influenceScore: number | '';
-  fundraisingPotential: number | '';
-  volunteerPotential: number | '';
+  /* -------------------------------------------------------
+   INFLUENCE / POTENTIAL SCORING
+   ------------------------------------------------------- */
 
-  // tags
+  /**
+   * Local influence in community
+   * 1–5 or empty if unknown
+   */
+  influenceScore: number | "" | undefined;
+
+  /**
+   * Likelihood of donating
+   * 1–5 or empty
+   */
+  fundraisingPotential: number | "" | undefined;
+
+  /**
+   * Likelihood of volunteering
+   * 1–5 or empty
+   */
+  volunteerPotential: number | "" | undefined;
+
+  /* -------------------------------------------------------
+   TAGGING
+   ------------------------------------------------------- */
+
+  /** Flexible campaign tagging system */
   tags: string[];
 
-  // consent + follow-up
-  permissionToContact: boolean;
-  followUpNeeded: boolean;
-  followUpNotes: string;
-  followUpTargetAt: string; // datetime-local
+  /* -------------------------------------------------------
+   CONSENT + FOLLOW-UP
+   ------------------------------------------------------- */
 
-  // media (offline data urls)
+  /** Legal permission to contact */
+  permissionToContact: boolean;
+
+  /** Should this contact enter the follow-up pipeline */
+  followUpNeeded: boolean;
+
+  /** Follow-up notes for organizer */
+  followUpNotes: string;
+
+  /** Follow-up target date (datetime-local input) */
+  followUpTargetAt: string;
+
+  /* -------------------------------------------------------
+   MEDIA (OFFLINE FIRST)
+   ------------------------------------------------------- */
+
+  /** Profile photo taken in field */
   profilePhotoDataUrl: string;
+
+  /** Business card scan */
   businessCardDataUrl: string;
+
+  /** Optional contextual photo */
   contextPhotoDataUrl: string;
 };

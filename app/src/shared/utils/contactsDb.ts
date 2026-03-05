@@ -146,6 +146,7 @@ export type Contact = {
   twitterHandle?: string;
   linkedinUrl?: string;
   tiktokHandle?: string;
+  tiktokUrl?: string;
 
   // Media pointers (server-side URL once uploaded)
   profilePhotoUrl?: string;
@@ -271,6 +272,7 @@ export type LiveFollowUp = {
   twitterHandle?: string;
   linkedinUrl?: string;
   tiktokHandle?: string;
+  tiktokUrl?: string;
 
   /**
    * identify who captured the record (3-letter initials like SAG).
@@ -701,6 +703,7 @@ export async function upsertContact(
     twitterHandle: pickNonEmpty(safeTrim(input.twitterHandle) || undefined, base.twitterHandle),
     linkedinUrl: pickNonEmpty(safeTrim(input.linkedinUrl) || undefined, base.linkedinUrl),
     tiktokHandle: pickNonEmpty(safeTrim(input.tiktokHandle) || undefined, base.tiktokHandle),
+    tiktokUrl: pickNonEmpty(safeTrim(input.tiktokUrl) || undefined, (base as any).tiktokUrl),
 
     profilePhotoUrl: pickNonEmpty(
       safeTrim(input.profilePhotoUrl) || undefined,
@@ -1107,135 +1110,4 @@ export function parseCityCounty(raw: string): { city?: string; county?: string }
   if (parts.length === 1) return { city: parts[0] };
   if (parts.length >= 2) return { city: parts[0], county: parts[1] };
   return { city: v };
-}
-/* --------------------------- CONTACT DIRECTORY --------------------------- */
-
-export async function listContacts(): Promise<Contact[]> {
-  const db = await openDb();
-
-  const tx = db.transaction(STORE_CONTACTS, 'readonly');
-  const store = tx.objectStore(STORE_CONTACTS);
-
-  try {
-    const rows = (await reqToPromise(store.getAll())) as Contact[];
-
-    await txDone(tx);
-
-    return (rows || []).sort((a, b) => {
-      const an = (a.fullName ?? '').toLowerCase();
-      const bn = (b.fullName ?? '').toLowerCase();
-
-      if (an < bn) return -1;
-      if (an > bn) return 1;
-
-      return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
-    });
-  } catch (e: any) {
-    await txDone(tx).catch(() => {});
-    throw new Error(e?.message ?? 'Failed to list contacts.');
-  }
-}
-// ------------------------ CONTACT DIRECTORY VIEW ------------------------
-
-export type ContactDirectoryRow = {
-  id: string;
-  fullName?: string;
-  phone?: string;
-  email?: string;
-  city?: string;
-  county?: string;
-  tags?: string[];
-
-  followUpStatus?: string;
-  followUpTargetAt?: string;
-  followUpCreatedAt?: string;
-};
-
-export async function listContactsDirectoryRows(): Promise<ContactDirectoryRow[]> {
-  const contacts = await listContacts();
-  const followups = await listLiveFollowUpsPendingSync().catch(() => []);
-
-  const latestByContact = new Map<string, any>();
-
-  for (const fu of followups || []) {
-    if (!fu?.contactId) continue;
-
-    const prev = latestByContact.get(fu.contactId);
-
-    if (!prev || (fu.createdAt && fu.createdAt > prev.createdAt)) {
-      latestByContact.set(fu.contactId, fu);
-    }
-  }
-
-  const rows: ContactDirectoryRow[] = contacts.map((c) => {
-    const latest = latestByContact.get(c.id);
-
-    return {
-      id: c.id,
-      fullName: c.fullName,
-      phone: c.phone,
-      email: c.email,
-      city: c.city,
-      county: c.county,
-      tags: c.tags,
-
-      followUpStatus: latest?.followUpStatus,
-      followUpTargetAt: latest?.followUpTargetAt,
-      followUpCreatedAt: latest?.createdAt,
-    };
-  });
-
-  return rows;
-}
-/* --------------------------- CONTACT HELPERS --------------------------- */
-
-export async function getContactById(id: string): Promise<Contact | null> {
-  const db = await openDb();
-
-  const tx = db.transaction(STORE_CONTACTS, 'readonly');
-  const store = tx.objectStore(STORE_CONTACTS);
-
-  try {
-    const row = (await reqToPromise(store.get(id))) as Contact | undefined;
-
-    await txDone(tx);
-
-    return row ?? null;
-  } catch (e: any) {
-    await txDone(tx).catch(() => {});
-    throw new Error(e?.message ?? 'Failed to get contact.');
-  }
-}
-
-export async function updateContact(
-  id: string,
-  patch: Partial<Contact>
-): Promise<Contact | null> {
-  const db = await openDb();
-
-  const tx = db.transaction(STORE_CONTACTS, 'readwrite');
-  const store = tx.objectStore(STORE_CONTACTS);
-
-  try {
-    const existing = (await reqToPromise(store.get(id))) as Contact | undefined;
-
-    if (!existing) {
-      await txDone(tx);
-      return null;
-    }
-
-    const next: Contact = {
-      ...existing,
-      ...patch,
-      updatedAt: nowIso(),
-    };
-
-    store.put(next);
-
-    await txDone(tx);
-
-    return next;
-  } catch (e: any) {
-    throw new Error(e?.message ?? 'Failed to update contact.');
-  }
 }

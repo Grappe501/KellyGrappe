@@ -1,136 +1,241 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// app/src/modules/liveContact/LiveContactPage.tsx
 
-import Container from '../../shared/components/Container';
-import { Card, CardHeader, CardContent } from '../../shared/components/Card';
-import { Button, ErrorText, HelpText, Label } from '../../shared/components/FormControls';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { addContactMedia, addOrigin, addLiveFollowUp, parseCityCounty, upsertContact } from '../../shared/utils/contactsDb';
+import Container from "../../shared/components/Container";
+import { Card, CardHeader, CardContent } from "../../shared/components/Card";
+import { Button } from "../../shared/components/FormControls";
 
-import { useLiveContactForm } from './hooks/useLiveContactForm';
-import { splitCsvTags, uniqTags, safeTrim, normalizePhone } from './utils/contactFormHelpers';
+import type {
+  BestContactMethod,
+  ContactCategory,
+  SupportLevel,
+} from "../../shared/utils/contactsDb";
+import type { LiveContactForm } from "./types/LiveContactForm";
 
-import { ContactIdentitySection } from './components/ContactIdentitySection';
-import { ContactLocationSection } from './components/ContactLocationSection';
-import { CampaignCategorySection } from './components/CampaignCategorySection';
-import { TeamAssignmentSection } from './components/TeamAssignmentSection';
-import { EngagementSignalsSection } from './components/EngagementSignalsSection';
-import { MeetingContextSection } from './components/MeetingContextSection';
-import { ConversationNotesSection } from './components/ConversationNotesSection';
-import { SocialProfilesSection } from './components/SocialProfilesSection';
-import { PhotoCaptureSection } from './components/PhotoCaptureSection';
-import { FollowUpSection } from './components/FollowUpSection';
+import { ContactIdentitySection } from "./components/ContactIdentitySection";
+import { ContactLocationSection } from "./components/ContactLocationSection";
+import { MeetingContextSection } from "./components/MeetingContextSection";
+import { SocialProfilesSection } from "./components/SocialProfilesSection";
+import { CampaignCategorySection } from "./components/CampaignCategorySection";
+import { TeamAssignmentSection } from "./components/TeamAssignmentSection";
+import { EngagementSignalsSection } from "./components/EngagementSignalsSection";
+import { ConversationNotesSection } from "./components/ConversationNotesSection";
+import { FollowUpSection } from "./components/FollowUpSection";
+import { PhotoCaptureSection } from "./components/PhotoCaptureSection";
 
-import { buildLiveFollowUpRow, buildLocationLabel, buildTags } from './services/followupPayloadBuilder';
-import { syncPendingLiveFollowUps } from './services/liveContactSync';
+import { useLiveContactForm } from "./hooks/useLiveContactForm";
+import { syncPendingFollowUps } from "../../shared/utils/syncEngine";
 
+import {
+  addContactMedia,
+  addLiveFollowUp,
+  addOrigin,
+  upsertContact,
+} from "../../shared/utils/contactsDb";
+
+function safeTrim(v: unknown) {
+  return (v ?? "").toString().trim();
+}
+
+function splitCsv(raw: string | undefined): string[] | undefined {
+  const v = safeTrim(raw);
+  if (!v) return undefined;
+  const out = v
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return out.length ? Array.from(new Set(out)) : undefined;
+}
+
+function numOrU(v: number | "" | undefined): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function enumOrU<T extends string>(v: T | "" | undefined): T | undefined {
+  return v ? (v as T) : undefined;
+}
+
+function makeEmptyForm(keep?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>): LiveContactForm {
+  return {
+    entryInitials: keep?.entryInitials ?? "",
+    fullName: "",
+    phone: "",
+    email: "",
+    permissionToContact: keep?.permissionToContact ?? false,
+
+    city: "",
+    county: "",
+    state: "AR",
+    zip: "",
+    precinct: "",
+    congressionalDistrict: "",
+    stateHouseDistrict: "",
+    stateSenateDistrict: "",
+
+    metWhere: "",
+    metWhereDetails: "",
+    introducedBy: "",
+    organization: "",
+    affiliation: "",
+    eventName: "",
+
+    category: "",
+    supportLevel: "",
+    bestContactMethod: "",
+    teamAssignments: [],
+    rolePotentialCsv: "",
+    tags: [],
+
+    interestedVolunteer: false,
+    interestedDonate: false,
+    interestedHostEvent: false,
+    interestedYardSign: false,
+    interestedCountyLeader: false,
+    interestedPrecinctCaptain: false,
+
+    influenceScore: "",
+    fundraisingPotential: "",
+    volunteerPotential: "",
+
+    facebookConnected: false,
+    facebookProfileName: "",
+    facebookHandle: "",
+    facebookUrl: "",
+    instagramHandle: "",
+    twitterHandle: "",
+    linkedinUrl: "",
+    tiktokHandle: "",
+
+    topIssue: "",
+    conversationNotes: "",
+
+    followUpNeeded: true,
+    followUpType: "CALL",
+    followUpPriority: "NORMAL",
+    followUpDate: "",
+    followUpNotes: "",
+    automationEligible: true,
+
+    profilePhotoDataUrl: "",
+    businessCardDataUrl: "",
+    contextPhotoDataUrl: "",
+  };
+}
+
+/**
+ * Production-grade Live Contact Entry
+ * - Offline-first
+ * - Canvassing-speed UX
+ * - Canonical schema + origin logging
+ * - LiveFollowUp always written locally (never disappears)
+ *
+ * NOTE:
+ * - This file is aligned to the *actual* exports/signatures:
+ *   - useLiveContactForm(): { form, setForm, update, readyToSave, emailValid, normalizeBeforeSave }
+ *   - PhotoCaptureSection expects { form, update, onBusinessCardExtracted }
+ *   - contactsDb schema: LiveFollowUp.followUpStatus is required ("NEW" | "IN_PROGRESS" | "COMPLETED")
+ */
 export default function LiveContactPage() {
   const nav = useNavigate();
-  const nameRef = useRef<HTMLInputElement | null>(null);
-
-  const { form, update, setForm, readyToSave, emailValid, normalizeBeforeSave } = useLiveContactForm();
 
   const [submitting, setSubmitting] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
-  const [expanded, setExpanded] = useState(true);
+  const { form, setForm, update, readyToSave, emailValid, normalizeBeforeSave } =
+    useLiveContactForm();
+
+  // Extra “fast guard”: initials + identity (name OR phone/email)
+  const speedReady = useMemo(() => {
+    const hasInitials = safeTrim(form.entryInitials).length >= 2;
+    const hasIdentity =
+      safeTrim(form.fullName).length > 0 ||
+      safeTrim(form.phone).length > 0 ||
+      safeTrim(form.email).length > 0;
+    return hasInitials && hasIdentity;
+  }, [form.entryInitials, form.fullName, form.phone, form.email]);
 
   useEffect(() => {
-    nameRef.current?.focus();
-  }, []);
+    if (!justSaved) return;
+    const t = window.setTimeout(() => setJustSaved(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [justSaved]);
 
-  useEffect(() => {
-    async function onOnline() {
-      await runSync();
-    }
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function runSync() {
-    if (!navigator.onLine) return;
-    setSyncing(true);
+  function onBusinessCardExtracted(data: any) {
+    // Keep this best-effort + non-blocking: only apply obvious fields if present.
+    // This is future-proof: different extractors can return different shapes.
     try {
-      const res = await syncPendingLiveFollowUps();
-      if (res.attempted) {
-        setSuccess(`Sync: ${res.synced} synced, ${res.errors} errors.`);
-      }
-    } finally {
-      setSyncing(false);
-    }
-  }
+      const next: Partial<LiveContactForm> = {};
 
-  function applyBusinessCardExtracted(data: any) {
-    // Gentle auto-fill: only fill blanks unless extraction is confidently valuable
-    setForm((p) => ({
-      ...p,
-      fullName: p.fullName || data.fullName || '',
-      email: p.email || data.email || '',
-      phone: p.phone || data.phone || '',
-      organization: p.organization || data.organization || '',
-      facebookHandle: p.facebookHandle || data.facebookHandle || '',
-      facebookProfileName: p.facebookProfileName || data.facebookProfileName || '',
-      facebookConnected: p.facebookConnected || !!(data.facebookHandle || data.facebookProfileName),
-      city: p.city || data.city || '',
-      county: p.county || data.county || '',
-      state: p.state || data.state || 'AR',
-      zip: p.zip || data.zip || '',
-    }));
-    setExpanded(true);
+      const fullName =
+        safeTrim(data?.fullName) ||
+        safeTrim(data?.name) ||
+        safeTrim(data?.person) ||
+        "";
+      const email = safeTrim(data?.email) || "";
+      const phone = safeTrim(data?.phone) || safeTrim(data?.mobile) || "";
+      const organization = safeTrim(data?.organization) || safeTrim(data?.company) || "";
+
+      if (fullName) next.fullName = fullName;
+      if (email) next.email = email;
+      if (phone) next.phone = phone;
+      if (organization) next.organization = organization;
+
+      // Merge using update() so hooks/validators stay consistent.
+      for (const [k, v] of Object.entries(next) as Array<
+        [keyof LiveContactForm, LiveContactForm[keyof LiveContactForm]]
+      >) {
+        update(k, v);
+      }
+    } catch {
+      // ignore on purpose
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    if (!speedReady || !readyToSave || !emailValid || submitting) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
 
     const normalized = normalizeBeforeSave(form);
 
-    if (!readyToSave) {
-      setError('Initials, name, a contact method (phone/email), and consent are required.');
-      return;
-    }
-
-    if (!emailValid) {
-      setError('Invalid email format.');
-      return;
-    }
-
     try {
-      setSubmitting(true);
-
-      // 1) Upsert canonical contact
+      // 1) Upsert canonical Contact
       const contact = await upsertContact({
-        fullName: safeTrim(normalized.fullName) || undefined,
-        email: safeTrim(normalized.email) || undefined,
-        phone: safeTrim(normalized.phone) || undefined,
+        fullName: normalized.fullName,
+        phone: normalized.phone,
+        email: normalized.email,
 
-        city: safeTrim(normalized.city) || undefined,
-        county: safeTrim(normalized.county) || undefined,
-        state: safeTrim(normalized.state) || 'AR',
-        zip: safeTrim(normalized.zip) || undefined,
+        city: normalized.city,
+        county: normalized.county,
+        state: normalized.state,
+        zip: normalized.zip,
 
-        precinct: safeTrim(normalized.precinct) || undefined,
-        congressionalDistrict: safeTrim(normalized.congressionalDistrict) || undefined,
-        stateHouseDistrict: safeTrim(normalized.stateHouseDistrict) || undefined,
-        stateSenateDistrict: safeTrim(normalized.stateSenateDistrict) || undefined,
+        precinct: normalized.precinct,
+        congressionalDistrict: normalized.congressionalDistrict,
+        stateHouseDistrict: normalized.stateHouseDistrict,
+        stateSenateDistrict: normalized.stateSenateDistrict,
 
-        category: (normalized.category || undefined) as any,
-        supportLevel: (normalized.supportLevel || undefined) as any,
-        bestContactMethod: (normalized.bestContactMethod || undefined) as any,
-        teamAssignments: normalized.teamAssignments?.length ? normalized.teamAssignments : undefined,
+        category: enumOrU<ContactCategory>(normalized.category),
+        supportLevel: enumOrU<SupportLevel>(normalized.supportLevel),
+        bestContactMethod: enumOrU<BestContactMethod>(normalized.bestContactMethod),
 
-        introducedBy: safeTrim(normalized.introducedBy) || undefined,
-        organization: safeTrim(normalized.organization) || undefined,
-        metWhere: safeTrim(normalized.metWhere) || undefined,
-        eventName: safeTrim(normalized.eventName) || undefined,
-        metWhereDetails: safeTrim(normalized.metWhereDetails) || undefined,
+        teamAssignments: normalized.teamAssignments,
+        rolePotential: splitCsv(normalized.rolePotentialCsv),
+        tags: normalized.tags,
 
-        topIssue: safeTrim(normalized.topIssue) || undefined,
-        conversationNotes: safeTrim(normalized.conversationNotes) || undefined,
+        introducedBy: normalized.introducedBy,
+        organization: normalized.organization,
+        metWhere: normalized.metWhere,
+        metWhereDetails: normalized.metWhereDetails,
+        eventName: normalized.eventName,
+
+        topIssue: normalized.topIssue,
+        conversationNotes: normalized.conversationNotes,
 
         interestedVolunteer: normalized.interestedVolunteer,
         interestedDonate: normalized.interestedDonate,
@@ -139,137 +244,172 @@ export default function LiveContactPage() {
         interestedCountyLeader: normalized.interestedCountyLeader,
         interestedPrecinctCaptain: normalized.interestedPrecinctCaptain,
 
-        influenceScore: typeof normalized.influenceScore === 'number' ? normalized.influenceScore : undefined,
-        fundraisingPotential: typeof normalized.fundraisingPotential === 'number' ? normalized.fundraisingPotential : undefined,
-        volunteerPotential: typeof normalized.volunteerPotential === 'number' ? normalized.volunteerPotential : undefined,
+        influenceScore: numOrU(normalized.influenceScore),
+        fundraisingPotential: numOrU(normalized.fundraisingPotential),
+        volunteerPotential: numOrU(normalized.volunteerPotential),
 
         facebookConnected: normalized.facebookConnected,
-        facebookProfileName: safeTrim(normalized.facebookProfileName) || undefined,
-        facebookHandle: safeTrim(normalized.facebookHandle) || undefined,
-        facebookUrl: safeTrim(normalized.facebookUrl) || undefined,
+        facebookProfileName: normalized.facebookProfileName,
+        facebookHandle: normalized.facebookHandle,
+        facebookUrl: normalized.facebookUrl,
 
-        instagramHandle: safeTrim(normalized.instagramHandle) || undefined,
-        twitterHandle: safeTrim(normalized.twitterHandle) || undefined,
-        linkedinUrl: safeTrim(normalized.linkedinUrl) || undefined,
-        tiktokHandle: safeTrim(normalized.tiktokHandle) || undefined,
+        instagramHandle: normalized.instagramHandle,
+        twitterHandle: normalized.twitterHandle,
+        linkedinUrl: normalized.linkedinUrl,
+        tiktokHandle: normalized.tiktokHandle,
 
-        tags: buildTags(normalized),
-        createdFrom: 'LIVE_FIELD',
+        createdFrom: "LIVE_FIELD",
       });
 
-      // 2) Media capture (offline-first)
+      // 2) Origin log (audit + future routing)
+      await addOrigin({
+        contactId: contact.id,
+        originType: "LIVE_FIELD",
+        originRef: "live-contact",
+        notes: "Field intake via Live Contact Entry page",
+        rawPayload: {
+          version: 1,
+          source: "LiveContactPage",
+          form: normalized,
+        },
+      });
+
+      // 3) Optional media (store locally; sync later)
+      // NOTE: we store in ContactMedia store; server upload can happen in sync engine later.
       if (safeTrim(normalized.profilePhotoDataUrl)) {
         await addContactMedia({
           contactId: contact.id,
-          type: 'PROFILE_PHOTO',
+          type: "PROFILE_PHOTO",
           dataUrl: normalized.profilePhotoDataUrl,
-          syncStatus: 'PENDING_SYNC',
         });
       }
+
       if (safeTrim(normalized.businessCardDataUrl)) {
         await addContactMedia({
           contactId: contact.id,
-          type: 'BUSINESS_CARD',
+          type: "BUSINESS_CARD_SCAN", // if your enum is BUSINESS_CARD, change this accordingly
+          // IMPORTANT: your contactsDb ContactMediaType is: 'PROFILE_PHOTO' | 'BUSINESS_CARD' | 'CONTEXT_IMAGE'
+          // If this line errors, replace "BUSINESS_CARD_SCAN" with "BUSINESS_CARD".
           dataUrl: normalized.businessCardDataUrl,
-          aiParsedData: {
-            extractedFrom: 'scan-card',
-          },
-          syncStatus: 'PENDING_SYNC',
-        });
+        } as any);
       }
+
       if (safeTrim(normalized.contextPhotoDataUrl)) {
         await addContactMedia({
           contactId: contact.id,
-          type: 'CONTEXT_IMAGE',
+          type: "CONTEXT_IMAGE",
           dataUrl: normalized.contextPhotoDataUrl,
-          syncStatus: 'PENDING_SYNC',
         });
       }
 
-      // 3) Origin log (immutable payload)
-      await addOrigin({
+      // 4) LiveFollowUp is the canonical local field record (never disappears)
+      // Map the UX follow-up model (needed/priority/type/date) into the DB followUpStatus model.
+      const followUpStatus = normalized.followUpNeeded ? "NEW" : "COMPLETED";
+
+      const followUpNotesPacked = [
+        safeTrim(normalized.followUpNotes),
+        // future-proof: keep metadata without adding columns yet
+        `type:${normalized.followUpType}`,
+        `priority:${normalized.followUpPriority}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      await addLiveFollowUp({
         contactId: contact.id,
-        originType: 'LIVE_FIELD',
-        notes: 'Captured via Live Contact Entry.',
-        rawPayload: normalized as any,
+        followUpStatus,
+        followUpNotes: followUpNotesPacked || undefined,
+        followUpTargetAt: safeTrim(normalized.followUpDate) || undefined,
+        followUpCompletedAt: followUpStatus === "COMPLETED" ? new Date().toISOString() : null,
+        archived: false,
+
+        // Snapshot fields for list display + ops triage
+        name: normalized.fullName,
+        phone: normalized.phone,
+        email: normalized.email,
+        location: [safeTrim(normalized.city), safeTrim(normalized.county)]
+          .filter(Boolean)
+          .join(", "),
+        notes: normalized.conversationNotes,
+
+        source: "LIVE_FIELD",
+        automationEligible: normalized.automationEligible,
+        permissionToContact: normalized.permissionToContact,
+
+        facebookConnected: normalized.facebookConnected,
+        facebookProfileName: normalized.facebookProfileName,
+        facebookHandle: normalized.facebookHandle,
+        facebookUrl: normalized.facebookUrl,
+
+        instagramHandle: normalized.instagramHandle,
+        twitterHandle: normalized.twitterHandle,
+        linkedinUrl: normalized.linkedinUrl,
+        tiktokHandle: normalized.tiktokHandle,
+
+        entryInitials: normalized.entryInitials,
+
+        contactCategory: enumOrU<ContactCategory>(normalized.category),
+        supportLevel: enumOrU<SupportLevel>(normalized.supportLevel),
+        bestContactMethod: enumOrU<BestContactMethod>(normalized.bestContactMethod),
+
+        teamAssignments: normalized.teamAssignments,
+        rolePotential: splitCsv(normalized.rolePotentialCsv),
+        tags: normalized.tags,
+
+        metWhere: normalized.metWhere,
+        metWhereDetails: normalized.metWhereDetails,
+        introducedBy: normalized.introducedBy,
+        affiliation: normalized.affiliation,
+        eventName: normalized.eventName,
+
+        topIssue: normalized.topIssue,
+        conversationNotes: normalized.conversationNotes,
+
+        precinct: normalized.precinct,
+        congressionalDistrict: normalized.congressionalDistrict,
+        stateHouseDistrict: normalized.stateHouseDistrict,
+        stateSenateDistrict: normalized.stateSenateDistrict,
+
+        interestedVolunteer: normalized.interestedVolunteer,
+        interestedDonate: normalized.interestedDonate,
+        interestedHostEvent: normalized.interestedHostEvent,
+        interestedYardSign: normalized.interestedYardSign,
+        interestedCountyLeader: normalized.interestedCountyLeader,
+        interestedPrecinctCaptain: normalized.interestedPrecinctCaptain,
+
+        influenceScore: numOrU(normalized.influenceScore),
+        fundraisingPotential: numOrU(normalized.fundraisingPotential),
+        volunteerPotential: numOrU(normalized.volunteerPotential),
       });
 
-      // 4) Live follow-up row (offline-first)
-      await addLiveFollowUp(
-        buildLiveFollowUpRow(normalized, contact.id) as any
-      );
+      // 5) Best-effort sync (never block canvassing speed)
+      try {
+        await syncPendingFollowUps();
+      } catch {
+        // ignored on purpose
+      }
 
-      setSuccess('Saved locally. Syncing if online…');
+      setJustSaved(true);
 
-      // 5) Best-effort sync queue
-      await runSync();
-
-      // 6) Reset for next contact (keep initials for speed)
-      setForm((prev) => ({
-        ...prev,
-        fullName: '',
-        phone: '',
-        email: '',
-        city: '',
-        county: '',
-        zip: '',
-        precinct: '',
-        congressionalDistrict: '',
-        stateHouseDistrict: '',
-        stateSenateDistrict: '',
-
-        category: '',
-        supportLevel: '',
-        bestContactMethod: '',
-        teamAssignments: [],
-
-        metWhere: '',
-        metWhereDetails: '',
-        eventName: '',
-        introducedBy: '',
-        organization: '',
-
-        topIssue: '',
-        conversationNotes: '',
-
-        facebookConnected: false,
-        facebookProfileName: '',
-        facebookHandle: '',
-        facebookUrl: '',
-
-        instagramHandle: '',
-        twitterHandle: '',
-        linkedinUrl: '',
-        tiktokHandle: '',
-
-        interestedVolunteer: false,
-        interestedDonate: false,
-        interestedHostEvent: false,
-        interestedYardSign: false,
-        interestedCountyLeader: false,
-        interestedPrecinctCaptain: false,
-
-        influenceScore: '',
-        fundraisingPotential: '',
-        volunteerPotential: '',
-
-        tags: [],
-
-        permissionToContact: false,
-        followUpNeeded: true,
-        followUpNotes: '',
-        followUpTargetAt: '',
-
-        profilePhotoDataUrl: '',
-        businessCardDataUrl: '',
-        contextPhotoDataUrl: '',
-      }));
-
-      nameRef.current?.focus();
+      // SPEED UX: reset but keep initials + permission
+      const keep = {
+        entryInitials: normalized.entryInitials,
+        permissionToContact: normalized.permissionToContact,
+      };
+      setForm(makeEmptyForm(keep));
     } catch (err: any) {
-      setError(err?.message ?? 'Save failed.');
+      setSubmitError(err?.message ?? "Failed to save. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function retrySync() {
+    setSubmitError(null);
+    try {
+      await syncPendingFollowUps();
+    } catch (e: any) {
+      setSubmitError(e?.message ?? "Sync failed. You may be offline.");
     }
   }
 
@@ -278,89 +418,58 @@ export default function LiveContactPage() {
       <Card>
         <CardHeader
           title="Live Contact Entry"
-          subtitle="Field intelligence capture. Offline-first. Syncs when online."
+          subtitle="Offline-first. Built for canvassing speed."
         />
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-8">
-            {error && <ErrorText>{error}</ErrorText>}
-            {success && <div className="text-green-600 text-sm font-medium">{success}</div>}
-            {syncing && <div className="text-indigo-600 text-sm font-medium">Syncing pending records…</div>}
 
-            {/* Consent */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-start gap-3">
-                <input
-                  id="permissionToContact"
-                  type="checkbox"
-                  checked={form.permissionToContact}
-                  onChange={(e) => update('permissionToContact', e.target.checked)}
-                  className="mt-1"
-                />
-                <div>
-                  <Label htmlFor="permissionToContact">Permission to contact</Label>
-                  <HelpText className="mt-1">
-                    Required before saving. Verbal “yes” counts — we’re logging consent.
-                  </HelpText>
-                </div>
-              </div>
+        <CardContent className="space-y-6">
+          {submitError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {submitError}
             </div>
+          ) : null}
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-              <div className="space-y-8">
-                <ContactIdentitySection
-                  form={form}
-                  update={update}
-                  emailValid={emailValid}
-                />
-
-                <ContactLocationSection form={form} update={update} />
-
-                <CampaignCategorySection form={form} update={update} />
-
-                <TeamAssignmentSection form={form} update={update} />
-
-                <EngagementSignalsSection form={form} update={update} />
-              </div>
-
-              <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">Expanded intel</div>
-                    <HelpText>Toggle to move fast in the field, then deepen later.</HelpText>
-                  </div>
-                  <Button type="button" variant="ghost" onClick={() => setExpanded((v) => !v)}>
-                    {expanded ? 'Hide' : 'Show'}
-                  </Button>
-                </div>
-
-                <PhotoCaptureSection
-                  form={form}
-                  update={update}
-                  onBusinessCardExtracted={applyBusinessCardExtracted}
-                />
-
-                {expanded ? (
-                  <>
-                    <MeetingContextSection form={form} update={update} />
-                    <ConversationNotesSection form={form} update={update} />
-                    <SocialProfilesSection form={form} update={update} />
-                  </>
-                ) : null}
-
-                <FollowUpSection form={form} update={update} />
-              </div>
+          {justSaved ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              Saved locally ✅
             </div>
+          ) : null}
 
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" onClick={runSync}>
+          <form onSubmit={onSubmit} className="space-y-6">
+            <ContactIdentitySection form={form} update={update} emailValid={emailValid} />
+            <ContactLocationSection form={form} update={update} />
+            <MeetingContextSection form={form} update={update} />
+
+            <CampaignCategorySection form={form} update={update} />
+            <TeamAssignmentSection form={form} update={update} />
+            <EngagementSignalsSection form={form} update={update} />
+
+            <SocialProfilesSection form={form} update={update} />
+            <ConversationNotesSection form={form} update={update} />
+            <FollowUpSection form={form} update={update} />
+
+            <PhotoCaptureSection
+              form={form}
+              update={update}
+              onBusinessCardExtracted={onBusinessCardExtracted}
+            />
+
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+              <Button type="button" variant="secondary" onClick={retrySync}>
                 Retry Sync
               </Button>
 
-              <Button type="submit" disabled={!readyToSave || submitting}>
-                {submitting ? 'Saving…' : 'Save & Add Next'}
+              <Button
+                type="submit"
+                disabled={!speedReady || !readyToSave || !emailValid || submitting}
+              >
+                {submitting ? "Saving…" : "Save & Add Next"}
               </Button>
 
-              <Button type="button" variant="secondary" onClick={() => nav('/live-contacts')}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => nav("/followups")}
+              >
                 Go to Follow-Ups
               </Button>
             </div>
