@@ -1,5 +1,3 @@
-// app/src/modules/liveContact/LiveContactPage.tsx
-
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -40,21 +38,23 @@ function safeTrim(v: unknown) {
   return (v ?? "").toString().trim()
 }
 
-function splitCsv(raw: string | undefined): string[] | undefined {
+function splitCsv(raw?: string) {
   const v = safeTrim(raw)
   if (!v) return undefined
+
   const out = v
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)
+
   return out.length ? Array.from(new Set(out)) : undefined
 }
 
-function numOrU(v: number | "" | undefined): number | undefined {
+function numOrUndefined(v: number | "") {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined
 }
 
-function enumOrU<T extends string>(v: T | "" | undefined): T | undefined {
+function enumOrUndefined<T extends string>(v: T | ""): T | undefined {
   return v ? (v as T) : undefined
 }
 
@@ -63,6 +63,7 @@ function makeEmptyForm(
 ): LiveContactForm {
   return {
     entryInitials: keep?.entryInitials ?? "",
+
     fullName: "",
     phone: "",
     email: "",
@@ -72,6 +73,7 @@ function makeEmptyForm(
     county: "",
     state: "AR",
     zip: "",
+
     precinct: "",
     congressionalDistrict: "",
     stateHouseDistrict: "",
@@ -106,6 +108,7 @@ function makeEmptyForm(
     facebookProfileName: "",
     facebookHandle: "",
     facebookUrl: "",
+
     instagramHandle: "",
     twitterHandle: "",
     linkedinUrl: "",
@@ -139,18 +142,19 @@ export default function LiveContactPage() {
 
   const speedReady = useMemo(() => {
     const hasInitials = safeTrim(form.entryInitials).length >= 2
+
     const hasIdentity =
       safeTrim(form.fullName) ||
       safeTrim(form.phone) ||
       safeTrim(form.email)
 
     return hasInitials && Boolean(hasIdentity)
-  }, [form.entryInitials, form.fullName, form.phone, form.email])
+  }, [form])
 
   useEffect(() => {
     if (!justSaved) return
-    const t = window.setTimeout(() => setJustSaved(false), 1500)
-    return () => window.clearTimeout(t)
+    const t = setTimeout(() => setJustSaved(false), 1500)
+    return () => clearTimeout(t)
   }, [justSaved])
 
   function onBusinessCardExtracted(data: any) {
@@ -159,11 +163,11 @@ export default function LiveContactPage() {
 
       const fullName =
         safeTrim(data?.fullName) ||
-        safeTrim(data?.name) ||
-        ""
+        safeTrim(data?.name)
 
       const email = safeTrim(data?.email)
       const phone = safeTrim(data?.phone)
+
       const organization =
         safeTrim(data?.organization) ||
         safeTrim(data?.company)
@@ -176,9 +180,7 @@ export default function LiveContactPage() {
       Object.entries(next).forEach(([k, v]) => {
         update(k as keyof LiveContactForm, v as any)
       })
-    } catch {
-      // ignore extraction errors
-    }
+    } catch {}
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -207,9 +209,9 @@ export default function LiveContactPage() {
         stateHouseDistrict: normalized.stateHouseDistrict,
         stateSenateDistrict: normalized.stateSenateDistrict,
 
-        category: enumOrU<ContactCategory>(normalized.category),
-        supportLevel: enumOrU<SupportLevel>(normalized.supportLevel),
-        bestContactMethod: enumOrU<BestContactMethod>(normalized.bestContactMethod),
+        category: enumOrUndefined<ContactCategory>(normalized.category),
+        supportLevel: enumOrUndefined<SupportLevel>(normalized.supportLevel),
+        bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
 
         teamAssignments: normalized.teamAssignments,
         rolePotential: splitCsv(normalized.rolePotentialCsv),
@@ -231,9 +233,9 @@ export default function LiveContactPage() {
         interestedCountyLeader: normalized.interestedCountyLeader,
         interestedPrecinctCaptain: normalized.interestedPrecinctCaptain,
 
-        influenceScore: numOrU(normalized.influenceScore),
-        fundraisingPotential: numOrU(normalized.fundraisingPotential),
-        volunteerPotential: numOrU(normalized.volunteerPotential),
+        influenceScore: numOrUndefined(normalized.influenceScore),
+        fundraisingPotential: numOrUndefined(normalized.fundraisingPotential),
+        volunteerPotential: numOrUndefined(normalized.volunteerPotential),
 
         facebookConnected: normalized.facebookConnected,
         facebookProfileName: normalized.facebookProfileName,
@@ -253,35 +255,29 @@ export default function LiveContactPage() {
         originType: "LIVE_FIELD",
         originRef: "live-contact",
         notes: "Field intake",
-        rawPayload: {
-          version: 1,
-          form: normalized,
-        },
+        rawPayload: { form: normalized },
       })
 
-      if (safeTrim(normalized.profilePhotoDataUrl)) {
+      if (normalized.profilePhotoDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "PROFILE_PHOTO",
           dataUrl: normalized.profilePhotoDataUrl,
         })
-      }
 
-      if (safeTrim(normalized.businessCardDataUrl)) {
+      if (normalized.businessCardDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "BUSINESS_CARD",
           dataUrl: normalized.businessCardDataUrl,
         })
-      }
 
-      if (safeTrim(normalized.contextPhotoDataUrl)) {
+      if (normalized.contextPhotoDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "CONTEXT_IMAGE",
           dataUrl: normalized.contextPhotoDataUrl,
         })
-      }
 
       const followUpStatus = normalized.followUpNeeded ? "NEW" : "COMPLETED"
 
@@ -311,9 +307,9 @@ export default function LiveContactPage() {
 
         entryInitials: normalized.entryInitials,
 
-        contactCategory: enumOrU<ContactCategory>(normalized.category),
-        supportLevel: enumOrU<SupportLevel>(normalized.supportLevel),
-        bestContactMethod: enumOrU<BestContactMethod>(normalized.bestContactMethod),
+        contactCategory: enumOrUndefined<ContactCategory>(normalized.category),
+        supportLevel: enumOrUndefined<SupportLevel>(normalized.supportLevel),
+        bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
       })
 
       try {
@@ -344,6 +340,7 @@ export default function LiveContactPage() {
         />
 
         <CardContent className="space-y-6">
+
           {submitError && (
             <div className="rounded border border-red-200 bg-red-50 p-3 text-sm">
               {submitError}

@@ -30,6 +30,9 @@ export type LiveContactForm = {
   phone: string;
   email: string;
 
+  /** Legal permission to contact */
+  permissionToContact: boolean;
+
   /* -------------------------------------------------------
    LOCATION
    ------------------------------------------------------- */
@@ -60,6 +63,16 @@ export type LiveContactForm = {
   /** Campaign team routing */
   teamAssignments: CampaignTeam[];
 
+  /**
+   * CSV list of potential campaign roles
+   * Example:
+   * "Volunteer,Donor,Precinct Captain"
+   */
+  rolePotentialCsv: string;
+
+  /** Flexible campaign tagging system */
+  tags: string[];
+
   /* -------------------------------------------------------
    CONTEXT OF MEETING
    ------------------------------------------------------- */
@@ -72,6 +85,9 @@ export type LiveContactForm = {
 
   /** Organization or group affiliation */
   organization: string;
+
+  /** Political or civic affiliation (future analytics use) */
+  affiliation: string;
 
   /* -------------------------------------------------------
    CONVERSATION
@@ -132,27 +148,35 @@ export type LiveContactForm = {
   volunteerPotential: number | "" | undefined;
 
   /* -------------------------------------------------------
-   TAGGING
+   FOLLOW-UP PIPELINE
    ------------------------------------------------------- */
-
-  /** Flexible campaign tagging system */
-  tags: string[];
-
-  /* -------------------------------------------------------
-   CONSENT + FOLLOW-UP
-   ------------------------------------------------------- */
-
-  /** Legal permission to contact */
-  permissionToContact: boolean;
 
   /** Should this contact enter the follow-up pipeline */
   followUpNeeded: boolean;
 
-  /** Follow-up notes for organizer */
+  /**
+   * Type of follow-up needed
+   * CALL / TEXT / EMAIL / MEETING etc
+   */
+  followUpType: string;
+
+  /**
+   * Follow-up urgency
+   * LOW / NORMAL / HIGH
+   */
+  followUpPriority: string;
+
+  /** Follow-up target date */
+  followUpDate: string;
+
+  /** Organizer notes for follow-up */
   followUpNotes: string;
 
-  /** Follow-up target date (datetime-local input) */
-  followUpTargetAt: string;
+  /**
+   * Whether automated messaging / workflow
+   * can be triggered by sync engine
+   */
+  automationEligible: boolean;
 
   /* -------------------------------------------------------
    MEDIA (OFFLINE FIRST)
