@@ -164,7 +164,7 @@ export default function EventRequestPage() {
 
       await processIntake({
         originType: 'EVENT_REQUEST',
-        
+        originRef: submitRes.requestId,
         rawPayload: form,
         contact: {
           fullName: form.contactName,
@@ -294,4 +294,3 @@ export default function EventRequestPage() {
     </Container>
   );
 }
-

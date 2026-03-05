@@ -236,3 +236,5 @@ export async function listContacts(): Promise<Contact[]> {
     throw new Error(e?.message ?? "Failed to list contacts.");
   }
 }
+
+export type { Contact } from '../contactsDb.types'

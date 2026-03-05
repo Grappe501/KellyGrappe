@@ -1,9 +1,11 @@
+// app/src/modules/liveContact/types/LiveContactForm.ts
+
 import type {
   BestContactMethod,
   CampaignTeam,
   ContactCategory,
   SupportLevel,
-} from "../../../shared/utils/db/contactsDb";
+} from "../../../shared/utils/db/contactsDb.types"
 
 /**
  * Canonical schema for the Live Contact intake form.
@@ -20,110 +22,117 @@ export type LiveContactForm = {
    ------------------------------------------------------- */
 
   /** Initials of the staffer/volunteer entering the contact */
-  entryInitials: string;
+  entryInitials: string
 
   /* -------------------------------------------------------
    CORE IDENTITY
    ------------------------------------------------------- */
 
-  fullName: string;
-  phone: string;
-  email: string;
+  fullName: string
+  phone: string
+  email: string
 
   /** Legal permission to contact */
-  permissionToContact: boolean;
+  permissionToContact: boolean
 
   /* -------------------------------------------------------
    LOCATION
    ------------------------------------------------------- */
 
-  city: string;
-  county: string;
-  state: string;
-  zip: string;
+  city: string
+  county: string
+  state: string
+  zip: string
 
-  precinct: string;
-  congressionalDistrict: string;
-  stateHouseDistrict: string;
-  stateSenateDistrict: string;
+  precinct: string
+  congressionalDistrict: string
+  stateHouseDistrict: string
+  stateSenateDistrict: string
 
   /* -------------------------------------------------------
    CAMPAIGN CLASSIFICATION
    ------------------------------------------------------- */
 
   /** Voter, volunteer, influencer, donor, etc */
-  category: ContactCategory | "";
+  category: ContactCategory | ""
 
   /** Strong support → opposed */
-  supportLevel: SupportLevel | "";
+  supportLevel: SupportLevel | ""
 
   /** Preferred outreach method */
-  bestContactMethod: BestContactMethod | "";
+  bestContactMethod: BestContactMethod | ""
 
   /** Campaign team routing */
-  teamAssignments: CampaignTeam[];
+  teamAssignments: CampaignTeam[]
 
   /**
    * CSV list of potential campaign roles
    * Example:
    * "Volunteer,Donor,Precinct Captain"
    */
-  rolePotentialCsv: string;
+  rolePotentialCsv: string
 
   /** Flexible campaign tagging system */
-  tags: string[];
+  tags: string[]
 
   /* -------------------------------------------------------
    CONTEXT OF MEETING
    ------------------------------------------------------- */
 
-  metWhere: string;
-  metWhereDetails: string;
+  metWhere: string
+  metWhereDetails: string
 
-  eventName: string;
-  introducedBy: string;
+  eventName: string
+  introducedBy: string
 
   /** Organization or group affiliation */
-  organization: string;
+  organization: string
 
   /** Political or civic affiliation (future analytics use) */
-  affiliation: string;
+  affiliation: string
 
   /* -------------------------------------------------------
    CONVERSATION
    ------------------------------------------------------- */
 
   /** Top issue mentioned by contact */
-  topIssue: string;
+  topIssue: string
 
   /** Free-form notes from conversation */
-  conversationNotes: string;
+  conversationNotes: string
 
   /* -------------------------------------------------------
    SOCIAL MEDIA
    ------------------------------------------------------- */
 
-  facebookConnected: boolean;
-  facebookProfileName: string;
-  facebookHandle: string;
-  facebookUrl: string;
+  facebookConnected: boolean
+  facebookProfileName: string
+  facebookHandle: string
+  facebookUrl: string
 
-  instagramHandle: string;
-  twitterHandle: string;
-  linkedinUrl: string;
-  tiktokHandle: string;
+  instagramHandle: string
+  twitterHandle: string
+  linkedinUrl: string
+  tiktokHandle: string
 
   /* -------------------------------------------------------
    ENGAGEMENT SIGNALS
    ------------------------------------------------------- */
 
-  interestedVolunteer: boolean;
-  interestedDonate: boolean;
-  interestedHostEvent: boolean;
-  interestedYardSign: boolean;
+  interestedVolunteer: boolean
 
-  interestedCountyLeader: boolean;
-  interestedPrecinctCaptain: boolean;
+  /**
+   * ⚠️ Compatibility note:
+   * This signal was removed from the canonical Contact model during the DB services refactor.
+   * We keep it here so legacy UI/forms don’t break. It’s optional to avoid hard TS failures.
+   */
+  interestedDonate?: boolean
+
+  interestedHostEvent: boolean
+  interestedYardSign: boolean
+
+  interestedCountyLeader: boolean
+  interestedPrecinctCaptain: boolean
 
   /* -------------------------------------------------------
    INFLUENCE / POTENTIAL SCORING
@@ -133,43 +142,43 @@ export type LiveContactForm = {
    * Local influence in community
    * 1–5 or empty if unknown
    */
-  influenceScore: number | "" | undefined;
+  influenceScore: number | "" | undefined
 
   /**
    * Likelihood of donating
    * 1–5 or empty
    */
-  fundraisingPotential: number | "" | undefined;
+  fundraisingPotential: number | "" | undefined
 
   /**
    * Likelihood of volunteering
    * 1–5 or empty
    */
-  volunteerPotential: number | "" | undefined;
+  volunteerPotential: number | "" | undefined
 
   /* -------------------------------------------------------
    FOLLOW-UP PIPELINE
    ------------------------------------------------------- */
 
   /** Should this contact enter the follow-up pipeline */
-  followUpNeeded: boolean;
+  followUpNeeded: boolean
 
   /**
    * Type of follow-up needed
    * CALL / TEXT / EMAIL / MEETING etc
    */
-  followUpType: string;
+  followUpType: string
 
   /**
    * Follow-up urgency
    * LOW / NORMAL / HIGH
    */
-  followUpPriority: string;
+  followUpPriority: string
 
   /**
    * Primary follow-up date field
    */
-  followUpDate: string;
+  followUpDate: string
 
   /**
    * Compatibility field used by:
@@ -179,27 +188,27 @@ export type LiveContactForm = {
    *
    * Both fields are kept to prevent schema breakage.
    */
-  followUpTargetAt: string;
+  followUpTargetAt: string
 
   /** Organizer notes for follow-up */
-  followUpNotes: string;
+  followUpNotes: string
 
   /**
    * Whether automated messaging / workflow
    * can be triggered by sync engine
    */
-  automationEligible: boolean;
+  automationEligible: boolean
 
   /* -------------------------------------------------------
    MEDIA (OFFLINE FIRST)
    ------------------------------------------------------- */
 
   /** Profile photo taken in field */
-  profilePhotoDataUrl: string;
+  profilePhotoDataUrl: string
 
   /** Business card scan */
-  businessCardDataUrl: string;
+  businessCardDataUrl: string
 
   /** Optional contextual photo */
-  contextPhotoDataUrl: string;
-};
+  contextPhotoDataUrl: string
+}

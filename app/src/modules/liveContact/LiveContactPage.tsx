@@ -9,7 +9,7 @@ import type {
   BestContactMethod,
   ContactCategory,
   SupportLevel,
-} from "../../shared/utils/db/contactsDb"
+} from "../../shared/utils/db/contactsDb.types"
 
 import type { LiveContactForm } from "./types/LiveContactForm"
 
@@ -28,11 +28,20 @@ import { useLiveContactForm } from "./hooks/useLiveContactForm"
 import { syncPendingFollowUps } from "../../shared/utils/syncEngine"
 
 import {
-  addContactMedia,
-  addLiveFollowUp,
-  addOrigin,
-  upsertContact,
-} from "../../shared/utils/db/contactsDb"
+  upsertContact
+} from "../../shared/utils/db/services/contacts.service"
+
+import {
+  addOrigin
+} from "../../shared/utils/db/services/origins.service"
+
+import {
+  addLiveFollowUp
+} from "../../shared/utils/db/services/followups.service"
+
+import {
+  addContactMedia
+} from "../../shared/utils/db/services/media.service"
 
 /**
  * Utility helpers
@@ -57,24 +66,15 @@ function splitCsv(raw?: string) {
   return out.length ? Array.from(new Set(out)) : undefined
 }
 
-/**
- * Safely convert numeric form fields
- */
 function numOrUndefined(v: number | "" | undefined) {
   if (typeof v === "number" && Number.isFinite(v)) return v
   return undefined
 }
 
-/**
- * Safely convert enum string
- */
 function enumOrUndefined<T extends string>(v: T | "" | undefined): T | undefined {
   return v ? (v as T) : undefined
 }
 
-/**
- * Build new blank form while preserving key fields
- */
 function makeEmptyForm(
   keep?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>
 ): LiveContactForm {
@@ -111,7 +111,6 @@ function makeEmptyForm(
     tags: [],
 
     interestedVolunteer: false,
-    interestedDonate: false,
     interestedHostEvent: false,
     interestedYardSign: false,
     interestedCountyLeader: false,
@@ -160,9 +159,6 @@ export default function LiveContactPage() {
   const { form, setForm, update, readyToSave, emailValid, normalizeBeforeSave } =
     useLiveContactForm()
 
-  /**
-   * Fast canvassing readiness
-   */
   const speedReady = useMemo(() => {
     const hasInitials = safeTrim(form.entryInitials).length >= 2
 
@@ -174,68 +170,12 @@ export default function LiveContactPage() {
     return hasInitials && Boolean(hasIdentity)
   }, [form])
 
-  /**
-   * Auto clear success indicator
-   */
   useEffect(() => {
     if (!justSaved) return
     const t = setTimeout(() => setJustSaved(false), 1500)
     return () => clearTimeout(t)
   }, [justSaved])
 
-  /**
-   * Attempt geolocation on page load
-   * (future use: auto-fill city/county/precinct)
-   */
-  useEffect(() => {
-    if (!navigator.geolocation) return
-
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        // Reserved for address intelligence integration
-      },
-      () => {
-        // silent failure — field canvassing shouldn't break
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 4000,
-      }
-    )
-  }, [])
-
-  /**
-   * Autofill from business card OCR
-   */
-  function onBusinessCardExtracted(data: any) {
-    try {
-      const next: Partial<LiveContactForm> = {}
-
-      const fullName =
-        safeTrim(data?.fullName) ||
-        safeTrim(data?.name)
-
-      const email = safeTrim(data?.email)
-      const phone = safeTrim(data?.phone)
-
-      const organization =
-        safeTrim(data?.organization) ||
-        safeTrim(data?.company)
-
-      if (fullName) next.fullName = fullName
-      if (email) next.email = email
-      if (phone) next.phone = phone
-      if (organization) next.organization = organization
-
-      Object.entries(next).forEach(([k, v]) => {
-        update(k as keyof LiveContactForm, v as any)
-      })
-    } catch {}
-  }
-
-  /**
-   * Submit form
-   */
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -247,10 +187,11 @@ export default function LiveContactPage() {
     const normalized = normalizeBeforeSave(form)
 
     try {
+
       const contact = await upsertContact({
         fullName: normalized.fullName,
-        phone: normalized.phone,
-        email: normalized.email,
+        phone: normalized.phone || undefined,
+        email: normalized.email || undefined,
 
         city: normalized.city,
         county: normalized.county,
@@ -280,7 +221,6 @@ export default function LiveContactPage() {
         conversationNotes: normalized.conversationNotes,
 
         interestedVolunteer: normalized.interestedVolunteer,
-        interestedDonate: normalized.interestedDonate,
         interestedHostEvent: normalized.interestedHostEvent,
         interestedYardSign: normalized.interestedYardSign,
         interestedCountyLeader: normalized.interestedCountyLeader,
@@ -303,50 +243,43 @@ export default function LiveContactPage() {
         createdFrom: "LIVE_FIELD",
       })
 
-      /**
-       * Record origin
-       */
       await addOrigin({
         contactId: contact.id,
         originType: "LIVE_FIELD",
-        originRef: "live-contact",
-        notes: "Field intake",
-        rawPayload: { form: normalized },
+        rawPayload: {
+          source: "live-contact",
+          notes: "Field intake",
+          form: normalized
+        }
       })
 
-      /**
-       * Attach media
-       */
       if (normalized.profilePhotoDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "PROFILE_PHOTO",
-          dataUrl: normalized.profilePhotoDataUrl,
+          dataUrl: normalized.profilePhotoDataUrl
         })
 
       if (normalized.businessCardDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "BUSINESS_CARD",
-          dataUrl: normalized.businessCardDataUrl,
+          dataUrl: normalized.businessCardDataUrl
         })
 
       if (normalized.contextPhotoDataUrl)
         await addContactMedia({
           contactId: contact.id,
           type: "CONTEXT_IMAGE",
-          dataUrl: normalized.contextPhotoDataUrl,
+          dataUrl: normalized.contextPhotoDataUrl
         })
 
       const followUpStatus = normalized.followUpNeeded ? "NEW" : "COMPLETED"
 
-      /**
-       * Create follow-up record
-       */
       await addLiveFollowUp({
         contactId: contact.id,
         followUpStatus,
-        followUpNotes: normalized.followUpNotes,
+        followUpNotes: normalized.followUpNotes || undefined,
 
         followUpTargetAt:
           normalized.followUpTargetAt ||
@@ -356,17 +289,17 @@ export default function LiveContactPage() {
         followUpCompletedAt:
           followUpStatus === "COMPLETED"
             ? new Date().toISOString()
-            : null,
+            : undefined,
 
         archived: false,
 
         name: normalized.fullName,
-        phone: normalized.phone,
-        email: normalized.email,
+        phone: normalized.phone || undefined,
+        email: normalized.email || undefined,
 
         location: [normalized.city, normalized.county]
           .filter(Boolean)
-          .join(", "),
+          .join(", ") || undefined,
 
         source: "LIVE_FIELD",
         automationEligible: normalized.automationEligible,
@@ -379,9 +312,6 @@ export default function LiveContactPage() {
         bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
       })
 
-      /**
-       * Attempt background sync
-       */
       try {
         await syncPendingFollowUps()
       } catch {}
@@ -441,7 +371,6 @@ export default function LiveContactPage() {
             <PhotoCaptureSection
               form={form}
               update={update}
-              onBusinessCardExtracted={onBusinessCardExtracted}
             />
 
             <div className="flex justify-end gap-3">

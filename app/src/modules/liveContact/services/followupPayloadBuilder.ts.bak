@@ -80,7 +80,7 @@ export function buildLiveFollowUpRow(form: LiveContactForm, contactId: string): 
     stateSenateDistrict: safeTrim(form.stateSenateDistrict) || undefined,
 
     interestedVolunteer: !!form.interestedVolunteer,
-    
+    interestedDonate: !!form.interestedDonate,
     interestedHostEvent: !!form.interestedHostEvent,
     interestedYardSign: !!form.interestedYardSign,
     interestedCountyLeader: !!form.interestedCountyLeader,
@@ -144,4 +144,3 @@ export function buildServerFollowUpPayload(row: any) {
     state_senate_district: row.stateSenateDistrict ?? null,
   };
 }
-

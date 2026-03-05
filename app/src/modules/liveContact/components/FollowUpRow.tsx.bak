@@ -118,7 +118,7 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
 
   const handleAssignmentBlur = async () => {
     const trimmed = assigneeDraft.trim();
-    await update({ assignedTo: trimmed || undefined });
+    await update({ assignedTo: trimmed || null });
     if (trimmed) saveRecentAssignee(trimmed);
   };
 
@@ -359,4 +359,3 @@ const FollowUpRow: React.FC<Props> = ({ row, onUpdate }) => {
 };
 
 export default React.memo(FollowUpRow);
-

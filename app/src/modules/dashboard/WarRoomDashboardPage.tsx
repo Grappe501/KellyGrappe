@@ -10,7 +10,7 @@ import { Card, CardHeader, CardContent } from "../../shared/components/Card"
 import {
   getCampaignDashboardMetrics,
   type CampaignDashboardMetrics
-} from "../../shared/utils/db/organizingMetrics.service"
+} from "../../shared/utils/db/services/organizingMetrics.service"
 
 /* ---------------- CONFIG ---------------- */
 

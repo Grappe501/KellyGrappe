@@ -195,7 +195,7 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   // 1) Canonical Contact
   const contact = await upsertContact({
     ...params.contact,
-    fullName: (fullName ?? safeTrim(params.contact.fullName)) || undefined,
+    fullName: fullName ?? safeTrim(params.contact.fullName) || undefined,
     email,
     phone,
   });
@@ -207,14 +207,14 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
 
   // 2) Origin log
   // New-origin schema is intentionally minimal; we preserve extra metadata inside rawPayload.
-  const origin = await addOrigin({ rawPayload: { originRef: 'migrated', originNotes: 'migrated' },
+  const origin = await addOrigin({
     contactId: contact.id,
     originType: params.originType,
     rawPayload: {
       ...(params.rawPayload ?? {}),
       __intakeMeta: {
-        
-        
+        originRef: params.originRef ?? null,
+        originNotes: params.originNotes ?? null,
       },
     },
   });
@@ -287,8 +287,8 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
     version: 2,
 
     originType: params.originType,
-    
-    
+    originRef: params.originRef ?? null,
+    originNotes: params.originNotes ?? null,
 
     originId: origin.id,
     followUpId: followUp.id,
@@ -311,9 +311,9 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
       // preserve compatibility fields if they were provided (server may care later)
       automationEligible: !!follow.automationEligible,
       facebookConnected: !!follow.facebookConnected,
-      facebookProfileName: safeTrim(follow.facebookProfileName) || undefined,
-      facebookHandle: safeTrim(follow.facebookHandle) || undefined,
-      facebookUrl: safeTrim(follow.facebookUrl) || undefined,
+      facebookProfileName: safeTrim(follow.facebookProfileName) || null,
+      facebookHandle: safeTrim(follow.facebookHandle) || null,
+      facebookUrl: safeTrim(follow.facebookUrl) || null,
     },
 
     rawPayload: params.rawPayload ?? {},
@@ -322,4 +322,3 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
 
   return { contact, followUpId: followUp.id, originId: origin.id };
 }
-

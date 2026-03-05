@@ -9,11 +9,11 @@ import { Card, CardHeader, CardContent } from "../../shared/components/Card"
 
 import {
   listContactRelationships,
-} from "../../shared/utils/db/relationships.service"
+} from "../../shared/utils/db/services/relationships.service"
 
 import {
   listContacts
-} from "../../shared/utils/db/contacts.service"
+} from "../../shared/utils/db/services/contacts.service"
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */

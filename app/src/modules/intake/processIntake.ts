@@ -22,7 +22,7 @@ import {
   type Contact,
   type OriginType,
   type VolunteerProfile,
-} from "../../shared/utils/db/contacts.service"; // ✅ same folder import (shared/utils)
+} from "../../shared/utils/db/services/contacts.service"; // ✅ same folder import (shared/utils)
 
 /* --------------------------------- UTILS -------------------------------- */
 
@@ -151,10 +151,10 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   });
 
   // 2) Origin log
-  const origin = await addOrigin({
+  const origin = await addOrigin({ rawPayload: { originRef: 'migrated', originNotes: 'migrated' },
     contactId: contact.id,
     originType: params.originType,
-    originRef: params.originRef,
+    
     notes: params.originNotes,
     rawPayload: params.rawPayload ?? {},
   });
@@ -218,8 +218,8 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   void tryEnqueueServerFollowUp({
     version: 1,
     originType: params.originType,
-    originRef: params.originRef ?? null,
-    originNotes: params.originNotes ?? null,
+    
+    
     originId: origin.id,
     followUpId: followUp.id,
 
@@ -228,7 +228,7 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
       fullName: contact.fullName ?? null,
       email: contact.email ?? null,
       phone: contact.phone ?? null,
-      location: safeTrim(follow.location) || null,
+      location: safeTrim(follow.location) || undefined,
     },
 
     followUp: {
@@ -245,3 +245,4 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
 
   return { contact, followUpId: followUp.id, originId: origin.id };
 }
+

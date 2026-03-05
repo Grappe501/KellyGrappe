@@ -61,7 +61,7 @@ export function defaultLiveContactForm(): LiveContactForm {
     tiktokHandle: "",
 
     interestedVolunteer: false,
-    
+    interestedDonate: false,
     interestedHostEvent: false,
     interestedYardSign: false,
     interestedCountyLeader: false,
@@ -212,4 +212,3 @@ export function useLiveContactForm() {
     normalizeBeforeSave,
   };
 }
-

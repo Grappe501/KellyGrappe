@@ -14,7 +14,7 @@ import {
     STORE_CONTACTS,
     reqToPromise,
     txDone
-  } from "../../shared/utils/db/contacts.service"
+  } from "../../shared/utils/db/services/contacts.service"
   
   /* ---------------- TYPES ---------------- */
   

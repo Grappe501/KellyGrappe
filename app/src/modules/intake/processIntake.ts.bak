@@ -12,27 +12,17 @@
    This file centralizes that behavior so modules don’t drift.
 */
 
-/**
- * ✅ IMPORTANT
- * This file is upgraded to the new DB architecture:
- * - Canonical contact ops live in: shared/utils/db/services/*
- * - Volunteer/event add-ons may live in: shared/utils/db/*.service.ts (non-core)
- *
- * Core rule:
- * - DO NOT import from db/contacts.service.ts (legacy aggregator)
- * - ONLY import the core primitives from db/services/*
- */
-
-import { addEventLead } from "./db/events.service";
 import {
+  addEventLead,
+  addLiveFollowUp,
+  addOrigin,
   replaceVolunteerInterests,
+  upsertContact,
   upsertVolunteerProfile,
+  type Contact,
+  type OriginType,
   type VolunteerProfile,
-} from "./db/volunteers.service";
-
-import { upsertContact, type Contact } from "./db/services/contacts.service";
-import { addOrigin, type OriginType } from "./db/services/origins.service";
-import { addLiveFollowUp } from "./db/services/followups.service";
+} from "../../shared/utils/db/services/contacts.service"; // ✅ same folder import (shared/utils)
 
 /* --------------------------------- UTILS -------------------------------- */
 
@@ -42,27 +32,6 @@ function safeTrim(v: unknown): string {
 
 function normalizePhone(raw: string): string {
   return safeTrim(raw).replace(/\D/g, "");
-}
-
-function toBool(v: unknown): boolean | undefined {
-  if (typeof v === "boolean") return v;
-  return undefined;
-}
-
-function buildFullName(input: IntakeContactInput): string | undefined {
-  // Prefer explicit fields if present
-  const direct = safeTrim((input as any)?.fullName);
-  if (direct) return direct;
-
-  // Allow "fullName" alias
-  const alias = safeTrim((input as any)?.fullName);
-  if (alias) return alias;
-
-  // If upstream ever provides first/last, we’ll gracefully support it.
-  const first = safeTrim((input as any)?.firstName);
-  const last = safeTrim((input as any)?.lastName);
-  const joined = safeTrim([first, last].filter(Boolean).join(" "));
-  return joined || undefined;
 }
 
 async function postJsonWithTimeout(
@@ -120,10 +89,6 @@ export type IntakeContactInput = Partial<Contact> & {
   fullName?: string;
   email?: string;
   phone?: string;
-
-  // optional friendly aliases (supported if present)
-  firstName?: string;
-  lastName?: string;
 };
 
 export type IntakeFollowUpInput = {
@@ -134,17 +99,9 @@ export type IntakeFollowUpInput = {
   location?: string;
   notes?: string;
 
+  automationEligible?: boolean;
   permissionToContact?: boolean;
 
-  // optional: used by followups.service defaults if passed
-  entryInitials?: string;
-
-  /**
-   * These fields may exist in older intake sources.
-   * We keep them here so calling modules don’t break, but we do not store them
-   * in the local follow-up row (the current LiveFollowUp type doesn’t include them).
-   */
-  automationEligible?: boolean;
   facebookConnected?: boolean;
   facebookProfileName?: string;
   facebookHandle?: string;
@@ -163,11 +120,8 @@ export type IntakeEventLeadExtras = {
 
 export type ProcessIntakeParams = {
   originType: OriginType;
-
-  // Kept for compatibility with modules and for server payload metadata
   originRef?: string;
   originNotes?: string;
-
   rawPayload: Record<string, unknown>;
 
   contact: IntakeContactInput;
@@ -189,40 +143,21 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   const phoneRaw = safeTrim(params.contact.phone);
   const phone = phoneRaw ? normalizePhone(phoneRaw) : undefined;
 
-  // Normalize name (ContactsDB expects a usable fullName)
-  const fullName = buildFullName(params.contact);
-
   // 1) Canonical Contact
   const contact = await upsertContact({
     ...params.contact,
-    fullName: (fullName ?? safeTrim(params.contact.fullName)) || undefined,
     email,
     phone,
   });
 
-  // HARD GUARD: never allow silent failure
-  if (!contact?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Contact creation failed");
-  }
-
   // 2) Origin log
-  // New-origin schema is intentionally minimal; we preserve extra metadata inside rawPayload.
-  const origin = await addOrigin({ rawPayload: { originRef: 'migrated', originNotes: 'migrated' },
+  const origin = await addOrigin({
     contactId: contact.id,
     originType: params.originType,
-    rawPayload: {
-      ...(params.rawPayload ?? {}),
-      __intakeMeta: {
-        
-        
-      },
-    },
+    originRef: params.originRef,
+    notes: params.originNotes,
+    rawPayload: params.rawPayload ?? {},
   });
-
-  // HARD GUARD: never allow silent failure
-  if (!origin?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Origin creation failed");
-  }
 
   // Optional: module-specific normalized objects
   if (params.volunteer?.profile) {
@@ -252,44 +187,39 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   const followUpNeeded =
     typeof follow.followUpNeeded === "boolean" ? follow.followUpNeeded : true;
 
-  const location = safeTrim(follow.location) || undefined;
-  const notes = safeTrim(follow.notes) || undefined;
-
   const followUp = await addLiveFollowUp({
     contactId: contact.id,
-
     followUpStatus: followUpNeeded ? "NEW" : "COMPLETED",
     followUpNotes: safeTrim(follow.followUpNotes) || undefined,
-    followUpCompletedAt: followUpNeeded ? undefined : new Date().toISOString(),
+    followUpCompletedAt: followUpNeeded ? null : new Date().toISOString(),
     archived: false,
 
-    // snapshot fields for list display
+    // list display snapshot
     name: contact.fullName,
     phone: contact.phone,
     email: contact.email,
-    location,
-    notes,
+    location: safeTrim(follow.location) || undefined,
+    notes: safeTrim(follow.notes) || undefined,
     source: safeTrim(follow.sourceLabel) || undefined,
+    automationEligible: !!follow.automationEligible,
+    permissionToContact: !!follow.permissionToContact,
 
-    permissionToContact: toBool(follow.permissionToContact),
-
-    // followups.service will normalize / default initials if omitted
-    entryInitials: safeTrim(follow.entryInitials) || undefined,
+    facebookConnected:
+      typeof follow.facebookConnected === "boolean"
+        ? follow.facebookConnected
+        : contact.facebookConnected,
+    facebookProfileName:
+      safeTrim(follow.facebookProfileName) || contact.facebookProfileName,
+    facebookHandle: safeTrim(follow.facebookHandle) || contact.facebookHandle,
+    facebookUrl: safeTrim(follow.facebookUrl) || contact.facebookUrl,
   });
-
-  // HARD GUARD: never allow silent failure
-  if (!followUp?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Follow-up creation failed");
-  }
 
   // 4) Best-effort server enqueue (global board)
   void tryEnqueueServerFollowUp({
-    version: 2,
-
+    version: 1,
     originType: params.originType,
-    
-    
-
+    originRef: params.originRef ?? null,
+    originNotes: params.originNotes ?? null,
     originId: origin.id,
     followUpId: followUp.id,
 
@@ -298,22 +228,15 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
       fullName: contact.fullName ?? null,
       email: contact.email ?? null,
       phone: contact.phone ?? null,
-      location: location ?? null,
+      location: safeTrim(follow.location) || null,
     },
 
     followUp: {
       status: followUp.followUpStatus,
       notes: followUp.followUpNotes ?? null,
       source: followUp.source ?? null,
+      automationEligible: !!followUp.automationEligible,
       permissionToContact: !!followUp.permissionToContact,
-      entryInitials: followUp.entryInitials ?? null,
-
-      // preserve compatibility fields if they were provided (server may care later)
-      automationEligible: !!follow.automationEligible,
-      facebookConnected: !!follow.facebookConnected,
-      facebookProfileName: safeTrim(follow.facebookProfileName) || undefined,
-      facebookHandle: safeTrim(follow.facebookHandle) || undefined,
-      facebookUrl: safeTrim(follow.facebookUrl) || undefined,
     },
 
     rawPayload: params.rawPayload ?? {},
@@ -322,4 +245,3 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
 
   return { contact, followUpId: followUp.id, originId: origin.id };
 }
-
