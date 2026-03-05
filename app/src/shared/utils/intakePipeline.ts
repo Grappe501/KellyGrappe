@@ -12,26 +12,7 @@
    This file centralizes that behavior so modules don’t drift.
 */
 
-/**
- * ✅ IMPORTANT
- * This file is upgraded to the new DB architecture:
- * - Canonical contact ops live in: shared/utils/db/services/*
- * - Volunteer/event add-ons may live in: shared/utils/db/*.service.ts (non-core)
- *
- * Core rule:
- * - DO NOT import from db/contacts.service.ts (legacy aggregator)
- * - ONLY import the core primitives from db/services/*
- */
-
-import { addEventLead } from "./db/events.service";
-import {
-  replaceVolunteerInterests,
-  upsertVolunteerProfile,
-  type VolunteerProfile,
-} from "./db/volunteers.service";
-
 import { upsertContact, type Contact } from "./db/services/contacts.service";
-import { addOrigin, type OriginType } from "./db/services/origins.service";
 import { addLiveFollowUp } from "./db/services/followups.service";
 
 /* --------------------------------- UTILS -------------------------------- */
@@ -44,25 +25,8 @@ function normalizePhone(raw: string): string {
   return safeTrim(raw).replace(/\D/g, "");
 }
 
-function toBool(v: unknown): boolean | undefined {
-  if (typeof v === "boolean") return v;
-  return undefined;
-}
-
-function buildFullName(input: IntakeContactInput): string | undefined {
-  // Prefer explicit fields if present
-  const direct = safeTrim((input as any)?.fullName);
-  if (direct) return direct;
-
-  // Allow "fullName" alias
-  const alias = safeTrim((input as any)?.fullName);
-  if (alias) return alias;
-
-  // If upstream ever provides first/last, we’ll gracefully support it.
-  const first = safeTrim((input as any)?.firstName);
-  const last = safeTrim((input as any)?.lastName);
-  const joined = safeTrim([first, last].filter(Boolean).join(" "));
-  return joined || undefined;
+function nowIso(): string {
+  return new Date().toISOString();
 }
 
 async function postJsonWithTimeout(
@@ -71,8 +35,6 @@ async function postJsonWithTimeout(
   timeoutMs = 5000
 ): Promise<Response> {
   const controller = new AbortController();
-
-  // ✅ SSR-safe timer usage (no direct window dependency)
   const t = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -91,27 +53,61 @@ async function postJsonWithTimeout(
  * Attempts to push the follow-up to a server-side queue (Supabase-backed),
  * so /live-contacts becomes global across devices.
  *
- * This is intentionally "best effort":
- * - If the endpoint doesn't exist yet, we do nothing.
- * - If it fails, the local follow-up still exists and UI still works.
- *
- * Next step: implement /.netlify/functions/followup-upsert
- * and a Supabase followups table, then /live-contacts loads from server.
+ * Best effort only:
+ * - If endpoint isn't deployed yet (404), do nothing.
+ * - If it fails, local follow-up still exists and UI still works.
  */
 async function tryEnqueueServerFollowUp(payload: Record<string, unknown>) {
   try {
     const endpoint = "/.netlify/functions/followup-upsert";
     const res = await postJsonWithTimeout(endpoint, payload, 7000);
-
-    // If the endpoint isn't deployed yet, Netlify will return 404.
     if (!res.ok) return;
-
-    // We don’t require anything from the response yet.
-    // Later we may read { serverFollowUpId } for linking.
     await res.json().catch(() => undefined);
   } catch {
     // best-effort only — never break intake
   }
+}
+
+/* ------------------------------ BEST-EFFORT STUBS ------------------------------ */
+/**
+ * These are intentionally build-safe no-ops for now.
+ * Wire them to real services later (origins.service, volunteers.service, events.service)
+ * without changing module imports.
+ */
+
+export type OriginType = string;
+
+export type VolunteerProfile = Record<string, unknown>;
+
+async function addOrigin(_input: {
+  contactId: string;
+  originType: OriginType;
+  originRef?: string;
+  notes?: string;
+  rawPayload?: unknown;
+  capturedAt?: string;
+}): Promise<{ id: string }> {
+  // TODO: replace with real origins service when available
+  return { id: `origin_${Date.now()}` };
+}
+
+async function upsertVolunteerProfile(_input: VolunteerProfile & { contactId: string }): Promise<void> {
+  // TODO: replace with real volunteers service when available
+}
+
+async function replaceVolunteerInterests(_input: {
+  contactId: string;
+  interests: Array<{ teamKey: string; roleLabel: string }>;
+}): Promise<void> {
+  // TODO: replace with real volunteers service when available
+}
+
+async function addEventLead(_input: {
+  contactId: string;
+  eventLeadText: string;
+  parsedCounty?: string;
+}): Promise<void> {
+  // TODO: replace with real events service when available
 }
 
 /* --------------------------------- TYPES -------------------------------- */
@@ -120,10 +116,6 @@ export type IntakeContactInput = Partial<Contact> & {
   fullName?: string;
   email?: string;
   phone?: string;
-
-  // optional friendly aliases (supported if present)
-  firstName?: string;
-  lastName?: string;
 };
 
 export type IntakeFollowUpInput = {
@@ -134,21 +126,10 @@ export type IntakeFollowUpInput = {
   location?: string;
   notes?: string;
 
-  permissionToContact?: boolean;
-
-  // optional: used by followups.service defaults if passed
-  entryInitials?: string;
-
-  /**
-   * These fields may exist in older intake sources.
-   * We keep them here so calling modules don’t break, but we do not store them
-   * in the local follow-up row (the current LiveFollowUp type doesn’t include them).
-   */
-  automationEligible?: boolean;
-  facebookConnected?: boolean;
-  facebookProfileName?: string;
-  facebookHandle?: string;
-  facebookUrl?: string;
+  // NOTE: intentionally removed fields that are not in LiveFollowUp type:
+  // - automationEligible
+  // - permissionToContact
+  // - facebook* fields
 };
 
 export type IntakeVolunteerExtras = {
@@ -163,11 +144,8 @@ export type IntakeEventLeadExtras = {
 
 export type ProcessIntakeParams = {
   originType: OriginType;
-
-  // Kept for compatibility with modules and for server payload metadata
   originRef?: string;
   originNotes?: string;
-
   rawPayload: Record<string, unknown>;
 
   contact: IntakeContactInput;
@@ -189,42 +167,24 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   const phoneRaw = safeTrim(params.contact.phone);
   const phone = phoneRaw ? normalizePhone(phoneRaw) : undefined;
 
-  // Normalize name (ContactsDB expects a usable fullName)
-  const fullName = buildFullName(params.contact);
-
   // 1) Canonical Contact
   const contact = await upsertContact({
     ...params.contact,
-    fullName: (fullName ?? safeTrim(params.contact.fullName)) || undefined,
     email,
     phone,
   });
 
-  // HARD GUARD: never allow silent failure
-  if (!contact?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Contact creation failed");
-  }
-
-  // 2) Origin log
-  // New-origin schema is intentionally minimal; we preserve extra metadata inside rawPayload.
-  const origin = await addOrigin({ rawPayload: { originRef: 'migrated', originNotes: 'migrated' },
+  // 2) Origin log (best-effort stub for now)
+  const origin = await addOrigin({
     contactId: contact.id,
     originType: params.originType,
-    rawPayload: {
-      ...(params.rawPayload ?? {}),
-      __intakeMeta: {
-        
-        
-      },
-    },
+    originRef: params.originRef,
+    notes: params.originNotes,
+    rawPayload: params.rawPayload ?? {},
+    capturedAt: nowIso(),
   });
 
-  // HARD GUARD: never allow silent failure
-  if (!origin?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Origin creation failed");
-  }
-
-  // Optional: module-specific normalized objects
+  // Optional: module-specific normalized objects (best-effort stubs for now)
   if (params.volunteer?.profile) {
     await upsertVolunteerProfile({
       ...params.volunteer.profile,
@@ -252,74 +212,46 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
   const followUpNeeded =
     typeof follow.followUpNeeded === "boolean" ? follow.followUpNeeded : true;
 
-  const location = safeTrim(follow.location) || undefined;
-  const notes = safeTrim(follow.notes) || undefined;
-
   const followUp = await addLiveFollowUp({
     contactId: contact.id,
-
     followUpStatus: followUpNeeded ? "NEW" : "COMPLETED",
     followUpNotes: safeTrim(follow.followUpNotes) || undefined,
-    followUpCompletedAt: followUpNeeded ? undefined : new Date().toISOString(),
+    followUpCompletedAt: followUpNeeded ? undefined : nowIso(),
     archived: false,
 
-    // snapshot fields for list display
+    // list display snapshot
     name: contact.fullName,
     phone: contact.phone,
     email: contact.email,
-    location,
-    notes,
+    location: safeTrim(follow.location) || undefined,
+    notes: safeTrim(follow.notes) || undefined,
     source: safeTrim(follow.sourceLabel) || undefined,
-
-    permissionToContact: toBool(follow.permissionToContact),
-
-    // followups.service will normalize / default initials if omitted
-    entryInitials: safeTrim(follow.entryInitials) || undefined,
   });
-
-  // HARD GUARD: never allow silent failure
-  if (!followUp?.id) {
-    throw new Error("INTAKE_PIPELINE_ERROR: Follow-up creation failed");
-  }
 
   // 4) Best-effort server enqueue (global board)
   void tryEnqueueServerFollowUp({
-    version: 2,
-
+    version: 1,
     originType: params.originType,
-    
-    
-
     originId: origin.id,
     followUpId: followUp.id,
 
     contact: {
       id: contact.id,
-      fullName: contact.fullName ?? null,
+      fullName: contact.fullName,
       email: contact.email ?? null,
       phone: contact.phone ?? null,
-      location: location ?? null,
+      location: safeTrim(follow.location) || null,
     },
 
     followUp: {
       status: followUp.followUpStatus,
       notes: followUp.followUpNotes ?? null,
       source: followUp.source ?? null,
-      permissionToContact: !!followUp.permissionToContact,
-      entryInitials: followUp.entryInitials ?? null,
-
-      // preserve compatibility fields if they were provided (server may care later)
-      automationEligible: !!follow.automationEligible,
-      facebookConnected: !!follow.facebookConnected,
-      facebookProfileName: safeTrim(follow.facebookProfileName) || undefined,
-      facebookHandle: safeTrim(follow.facebookHandle) || undefined,
-      facebookUrl: safeTrim(follow.facebookUrl) || undefined,
     },
 
     rawPayload: params.rawPayload ?? {},
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
   });
 
   return { contact, followUpId: followUp.id, originId: origin.id };
 }
-

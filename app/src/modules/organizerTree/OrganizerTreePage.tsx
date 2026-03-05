@@ -102,9 +102,7 @@ function TreeNodeView({ node }: { node: TreeNode }) {
     <div className="ml-4 border-l border-slate-200 pl-4 mt-3">
 
       <div className="font-medium text-sm">
-
         {node.contact.fullName || "Unnamed"}
-
       </div>
 
       {node.children.length > 0 && (
@@ -176,7 +174,8 @@ export default function OrganizerTreePage() {
 
       setLoading(true)
 
-      const r = await listContactRelationships(rootId)
+      /* FIX: cast to string because we guard above */
+      const r = await listContactRelationships(rootId as string)
 
       setRelationships(r)
 
@@ -217,15 +216,11 @@ export default function OrganizerTreePage() {
         <div>
 
           <h1 className="text-2xl font-bold">
-
             Power-of-5 Organizer Tree
-
           </h1>
 
           <p className="text-sm text-slate-600">
-
             Visualize organizer recruitment networks
-
           </p>
 
         </div>
@@ -253,9 +248,7 @@ export default function OrganizerTreePage() {
                   key={c.id}
                   value={c.id}
                 >
-
                   {c.fullName || "Unnamed"}
-
                 </option>
 
               ))}

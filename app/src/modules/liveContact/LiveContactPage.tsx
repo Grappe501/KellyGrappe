@@ -7,8 +7,6 @@ import { Button } from "../../shared/components/FormControls"
 
 import type {
   BestContactMethod,
-  ContactCategory,
-  SupportLevel,
 } from "../../shared/utils/db/contactsDb.types"
 
 import type { LiveContactForm } from "./types/LiveContactForm"
@@ -27,129 +25,21 @@ import { PhotoCaptureSection } from "./components/PhotoCaptureSection"
 import { useLiveContactForm } from "./hooks/useLiveContactForm"
 import { syncPendingFollowUps } from "../../shared/utils/syncEngine"
 
-import {
-  upsertContact
-} from "../../shared/utils/db/services/contacts.service"
-
-import {
-  addOrigin
-} from "../../shared/utils/db/services/origins.service"
-
-import {
-  addLiveFollowUp
-} from "../../shared/utils/db/services/followups.service"
-
-import {
-  addContactMedia
-} from "../../shared/utils/db/services/media.service"
-
-/**
- * Utility helpers
- */
+import { upsertContact } from "../../shared/utils/db/services/contacts.service"
+import { addOrigin } from "../../shared/utils/db/services/origins.service"
+import { addLiveFollowUp } from "../../shared/utils/db/services/followups.service"
+import { addContactMedia } from "../../shared/utils/db/services/media.service"
 
 function safeTrim(v: unknown) {
   return (v ?? "").toString().trim()
-}
-
-/**
- * Convert CSV to unique string array
- */
-function splitCsv(raw?: string) {
-  const v = safeTrim(raw)
-  if (!v) return undefined
-
-  const out = v
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean)
-
-  return out.length ? Array.from(new Set(out)) : undefined
-}
-
-function numOrUndefined(v: number | "" | undefined) {
-  if (typeof v === "number" && Number.isFinite(v)) return v
-  return undefined
 }
 
 function enumOrUndefined<T extends string>(v: T | "" | undefined): T | undefined {
   return v ? (v as T) : undefined
 }
 
-function makeEmptyForm(
-  keep?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>
-): LiveContactForm {
-  return {
-    entryInitials: keep?.entryInitials ?? "",
-
-    fullName: "",
-    phone: "",
-    email: "",
-    permissionToContact: keep?.permissionToContact ?? false,
-
-    city: "",
-    county: "",
-    state: "AR",
-    zip: "",
-
-    precinct: "",
-    congressionalDistrict: "",
-    stateHouseDistrict: "",
-    stateSenateDistrict: "",
-
-    metWhere: "",
-    metWhereDetails: "",
-    introducedBy: "",
-    organization: "",
-    affiliation: "",
-    eventName: "",
-
-    category: "",
-    supportLevel: "",
-    bestContactMethod: "",
-    teamAssignments: [],
-    rolePotentialCsv: "",
-    tags: [],
-
-    interestedVolunteer: false,
-    interestedHostEvent: false,
-    interestedYardSign: false,
-    interestedCountyLeader: false,
-    interestedPrecinctCaptain: false,
-
-    influenceScore: "",
-    fundraisingPotential: "",
-    volunteerPotential: "",
-
-    facebookConnected: false,
-    facebookProfileName: "",
-    facebookHandle: "",
-    facebookUrl: "",
-
-    instagramHandle: "",
-    twitterHandle: "",
-    linkedinUrl: "",
-    tiktokHandle: "",
-
-    topIssue: "",
-    conversationNotes: "",
-
-    followUpNeeded: true,
-    followUpType: "CALL",
-    followUpPriority: "NORMAL",
-
-    followUpDate: "",
-    followUpTargetAt: "",
-
-    followUpNotes: "",
-    automationEligible: true,
-
-    profilePhotoDataUrl: "",
-    businessCardDataUrl: "",
-    contextPhotoDataUrl: "",
-  }
-}
-
 export default function LiveContactPage() {
+
   const nav = useNavigate()
 
   const [submitting, setSubmitting] = useState(false)
@@ -160,6 +50,7 @@ export default function LiveContactPage() {
     useLiveContactForm()
 
   const speedReady = useMemo(() => {
+
     const hasInitials = safeTrim(form.entryInitials).length >= 2
 
     const hasIdentity =
@@ -168,6 +59,7 @@ export default function LiveContactPage() {
       safeTrim(form.email)
 
     return hasInitials && Boolean(hasIdentity)
+
   }, [form])
 
   useEffect(() => {
@@ -177,6 +69,7 @@ export default function LiveContactPage() {
   }, [justSaved])
 
   async function onSubmit(e: React.FormEvent) {
+
     e.preventDefault()
 
     if (!speedReady || !readyToSave || !emailValid || submitting) return
@@ -188,60 +81,13 @@ export default function LiveContactPage() {
 
     try {
 
+      /* CONTACT UPSERT */
+
       const contact = await upsertContact({
-        fullName: normalized.fullName,
-        phone: normalized.phone || undefined,
-        email: normalized.email || undefined,
-
-        city: normalized.city,
-        county: normalized.county,
-        state: normalized.state,
-        zip: normalized.zip,
-
-        precinct: normalized.precinct,
-        congressionalDistrict: normalized.congressionalDistrict,
-        stateHouseDistrict: normalized.stateHouseDistrict,
-        stateSenateDistrict: normalized.stateSenateDistrict,
-
-        category: enumOrUndefined<ContactCategory>(normalized.category),
-        supportLevel: enumOrUndefined<SupportLevel>(normalized.supportLevel),
-        bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
-
-        teamAssignments: normalized.teamAssignments,
-        rolePotential: splitCsv(normalized.rolePotentialCsv),
-        tags: normalized.tags,
-
-        introducedBy: normalized.introducedBy,
-        organization: normalized.organization,
-        metWhere: normalized.metWhere,
-        metWhereDetails: normalized.metWhereDetails,
-        eventName: normalized.eventName,
-
-        topIssue: normalized.topIssue,
-        conversationNotes: normalized.conversationNotes,
-
-        interestedVolunteer: normalized.interestedVolunteer,
-        interestedHostEvent: normalized.interestedHostEvent,
-        interestedYardSign: normalized.interestedYardSign,
-        interestedCountyLeader: normalized.interestedCountyLeader,
-        interestedPrecinctCaptain: normalized.interestedPrecinctCaptain,
-
-        influenceScore: numOrUndefined(normalized.influenceScore),
-        fundraisingPotential: numOrUndefined(normalized.fundraisingPotential),
-        volunteerPotential: numOrUndefined(normalized.volunteerPotential),
-
-        facebookConnected: normalized.facebookConnected,
-        facebookProfileName: normalized.facebookProfileName,
-        facebookHandle: normalized.facebookHandle,
-        facebookUrl: normalized.facebookUrl,
-
-        instagramHandle: normalized.instagramHandle,
-        twitterHandle: normalized.twitterHandle,
-        linkedinUrl: normalized.linkedinUrl,
-        tiktokHandle: normalized.tiktokHandle,
-
-        createdFrom: "LIVE_FIELD",
+        ...(normalized as any)
       })
+
+      /* ORIGIN */
 
       await addOrigin({
         contactId: contact.id,
@@ -252,6 +98,8 @@ export default function LiveContactPage() {
           form: normalized
         }
       })
+
+      /* MEDIA */
 
       if (normalized.profilePhotoDataUrl)
         await addContactMedia({
@@ -274,11 +122,16 @@ export default function LiveContactPage() {
           dataUrl: normalized.contextPhotoDataUrl
         })
 
+      /* FOLLOW UP */
+
       const followUpStatus = normalized.followUpNeeded ? "NEW" : "COMPLETED"
 
       await addLiveFollowUp({
+
         contactId: contact.id,
+
         followUpStatus,
+
         followUpNotes: normalized.followUpNotes || undefined,
 
         followUpTargetAt:
@@ -302,14 +155,10 @@ export default function LiveContactPage() {
           .join(", ") || undefined,
 
         source: "LIVE_FIELD",
-        automationEligible: normalized.automationEligible,
+
         permissionToContact: normalized.permissionToContact,
 
         entryInitials: normalized.entryInitials,
-
-        contactCategory: enumOrUndefined<ContactCategory>(normalized.category),
-        supportLevel: enumOrUndefined<SupportLevel>(normalized.supportLevel),
-        bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
       })
 
       try {
@@ -318,23 +167,31 @@ export default function LiveContactPage() {
 
       setJustSaved(true)
 
-      setForm(
-        makeEmptyForm({
-          entryInitials: normalized.entryInitials,
-          permissionToContact: normalized.permissionToContact,
-        })
-      )
+      setForm({
+        ...form,
+        fullName: "",
+        phone: "",
+        email: ""
+      })
 
     } catch (err: any) {
+
       setSubmitError(err?.message ?? "Save failed")
+
     } finally {
+
       setSubmitting(false)
+
     }
+
   }
 
   return (
+
     <Container>
+
       <Card>
+
         <CardHeader
           title="Live Contact Entry"
           subtitle="Offline-first canvassing tool"
@@ -371,6 +228,12 @@ export default function LiveContactPage() {
             <PhotoCaptureSection
               form={form}
               update={update}
+              onBusinessCardExtracted={(data) => {
+                if (!data) return
+                if (data.fullName) update("fullName", data.fullName)
+                if (data.email) update("email", data.email)
+                if (data.phone) update("phone", data.phone)
+              }}
             />
 
             <div className="flex justify-end gap-3">
@@ -391,9 +254,15 @@ export default function LiveContactPage() {
               </Button>
 
             </div>
+
           </form>
+
         </CardContent>
+
       </Card>
+
     </Container>
+
   )
+
 }

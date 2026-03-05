@@ -156,28 +156,54 @@ export default function EventRequestPage() {
     try {
       setSubmitting(true);
 
-      const submitRes = await submitModule({
+      /* -------------------------
+         Store module submission
+      ------------------------- */
+
+      await submitModule({
         moduleId: 'MODULE_001_EVENT_REQUEST',
         honeypot: form.honeypot,
         data: form,
       });
 
+      /* -------------------------
+         Intake Pipeline
+      ------------------------- */
+
       await processIntake({
-        originType: 'EVENT_REQUEST',
-        
-        rawPayload: form,
-        contact: {
-          fullName: form.contactName,
-          email: form.contactEmail,
-          phone: form.contactPhone || undefined,
-          city: form.city,
-          state: form.state,
-        },
-        followUp: {
+        source: 'EVENT_REQUEST',
+
+        form: {
+          fullName: safeTrim(form.contactName),
+          email: safeTrim(form.contactEmail).toLowerCase(),
+          phone: safeTrim(form.contactPhone) || undefined,
+
+          city: safeTrim(form.city),
+          state: safeTrim(form.state),
+          zip: safeTrim(form.zip),
+
+          organization: safeTrim(form.organization),
+
+          eventName: safeTrim(form.eventTitle),
+          metWhere: 'Event Request Form',
+
+          conversationNotes:
+            `Event Request: ${safeTrim(form.eventTitle)}\n` +
+            `Type: ${form.eventType}\n` +
+            `Attendance: ${form.expectedAttendance}\n` +
+            `Requested Role: ${form.requestedRole}\n` +
+            `Media Expected: ${form.mediaExpected}\n` +
+            `Start: ${form.startDateTime}\n` +
+            `End: ${form.endDateTime}\n\n` +
+            `${safeTrim(form.eventDescription)}\n\n` +
+            `${safeTrim(form.hostNotes)}`,
+
           followUpNeeded: true,
-          sourceLabel: 'Event Request',
+
+          followUpNotes:
+            'New event request submitted.',
+
           permissionToContact: form.permissionToContact,
-          followUpNotes: 'New event request submitted.',
         },
       });
 
@@ -196,6 +222,7 @@ export default function EventRequestPage() {
           title="Invite Kelly to Your Event"
           subtitle="Submit once. We follow up fast."
         />
+
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-6">
 
@@ -216,6 +243,7 @@ export default function EventRequestPage() {
                 value={form.contactEmail}
                 onChange={(e) => update('contactEmail', e.target.value)}
               />
+
               {safeTrim(form.contactEmail) &&
               !isEmailLike(form.contactEmail) ? (
                 <ErrorText>Please enter a valid email.</ErrorText>
@@ -276,6 +304,7 @@ export default function EventRequestPage() {
                   update('permissionToContact', e.target.checked)
                 }
               />
+
               <HelpText>
                 I agree to be contacted about this request.
               </HelpText>
@@ -288,6 +317,7 @@ export default function EventRequestPage() {
                 {submitting ? 'Submitting…' : 'Submit Event Request'}
               </Button>
             </div>
+
           </form>
         </CardContent>
       </Card>

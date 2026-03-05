@@ -76,35 +76,35 @@ export function EngagementSignalsSection(props: {
         <ToggleRow
           id="signal-volunteer"
           label="Wants to volunteer"
-          checked={form.interestedVolunteer}
+          checked={!!form.interestedVolunteer}
           onChange={(v) => update("interestedVolunteer", v)}
         />
 
         <ToggleRow
           id="signal-donate"
           label="Wants to donate"
-          checked={form.interestedDonate}
+          checked={!!form.interestedDonate}
           onChange={(v) => update("interestedDonate", v)}
         />
 
         <ToggleRow
           id="signal-host-event"
           label="Could host an event"
-          checked={form.interestedHostEvent}
+          checked={!!form.interestedHostEvent}
           onChange={(v) => update("interestedHostEvent", v)}
         />
 
         <ToggleRow
           id="signal-yard-sign"
           label="Wants a yard sign"
-          checked={form.interestedYardSign}
+          checked={!!form.interestedYardSign}
           onChange={(v) => update("interestedYardSign", v)}
         />
 
         <ToggleRow
           id="signal-county-leader"
           label="County leader prospect"
-          checked={form.interestedCountyLeader}
+          checked={!!form.interestedCountyLeader}
           onChange={(v) => update("interestedCountyLeader", v)}
           help="Potential organizer for county-level campaign structure."
         />
@@ -112,7 +112,7 @@ export function EngagementSignalsSection(props: {
         <ToggleRow
           id="signal-precinct-captain"
           label="Precinct captain prospect"
-          checked={form.interestedPrecinctCaptain}
+          checked={!!form.interestedPrecinctCaptain}
           onChange={(v) => update("interestedPrecinctCaptain", v)}
           help="Possible precinct-level leader for field operations."
         />
