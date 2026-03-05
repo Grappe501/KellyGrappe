@@ -381,7 +381,7 @@ const DB_NAME: DbName = 'kg_sos_ops_db';
  * v3 existed already.
  * v4 adds a new object store: contact_media
  */
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 const STORE_CONTACTS = 'contacts';
 const STORE_ORIGINS = 'contact_origins';
@@ -390,6 +390,7 @@ const STORE_VOL_INTERESTS = 'volunteer_interests';
 const STORE_EVENT_LEADS = 'event_leads';
 const STORE_LIVE_FOLLOWUPS = 'live_followups';
 const STORE_CONTACT_MEDIA = 'contact_media';
+const STORE_CONTACT_RELATIONSHIPS = "contact_relationships";
 
 /* --------------------------------- UTILS -------------------------------- */
 
@@ -506,10 +507,9 @@ async function openDb(): Promise<IDBDatabase> {
 
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-
     req.onupgradeneeded = () => {
       const db = req.result;
-
+    
       if (!db.objectStoreNames.contains(STORE_CONTACTS)) {
         const s = db.createObjectStore(STORE_CONTACTS, { keyPath: 'id' });
         s.createIndex('email', 'email', { unique: false });
@@ -517,29 +517,63 @@ async function openDb(): Promise<IDBDatabase> {
         s.createIndex('fullName', 'fullName', { unique: false });
         s.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
-
+    
       if (!db.objectStoreNames.contains(STORE_ORIGINS)) {
         const s = db.createObjectStore(STORE_ORIGINS, { keyPath: 'id' });
         s.createIndex('contactId', 'contactId', { unique: false });
         s.createIndex('originType', 'originType', { unique: false });
         s.createIndex('capturedAt', 'capturedAt', { unique: false });
       }
-
+    
       if (!db.objectStoreNames.contains(STORE_VOL_PROFILES)) {
         db.createObjectStore(STORE_VOL_PROFILES, { keyPath: 'contactId' });
       }
-
+    
       if (!db.objectStoreNames.contains(STORE_VOL_INTERESTS)) {
         const s = db.createObjectStore(STORE_VOL_INTERESTS, { keyPath: 'id' });
         s.createIndex('contactId', 'contactId', { unique: false });
         s.createIndex('teamKey', 'teamKey', { unique: false });
       }
-
+    
       if (!db.objectStoreNames.contains(STORE_EVENT_LEADS)) {
         const s = db.createObjectStore(STORE_EVENT_LEADS, { keyPath: 'id' });
         s.createIndex('contactId', 'contactId', { unique: false });
         s.createIndex('status', 'status', { unique: false });
       }
+    
+      /* ---------------- RELATIONSHIPS (POWER OF 5) ---------------- */
+    
+      if (!db.objectStoreNames.contains(STORE_CONTACT_RELATIONSHIPS)) {
+        const s = db.createObjectStore(STORE_CONTACT_RELATIONSHIPS, { keyPath: "id" });
+        s.createIndex("fromContactId", "fromContactId", { unique: false });
+        s.createIndex("toContactId", "toContactId", { unique: false });
+        s.createIndex("relationshipType", "relationshipType", { unique: false });
+        s.createIndex("createdAt", "createdAt", { unique: false });
+      }
+    
+      /* ---------------- LIVE FOLLOW UPS ---------------- */
+    
+      if (!db.objectStoreNames.contains(STORE_LIVE_FOLLOWUPS)) {
+        const s = db.createObjectStore(STORE_LIVE_FOLLOWUPS, { keyPath: 'id' });
+        s.createIndex('contactId', 'contactId', { unique: false });
+        s.createIndex('followUpStatus', 'followUpStatus', { unique: false });
+        s.createIndex('createdAt', 'createdAt', { unique: false });
+        s.createIndex('archived', 'archived', { unique: false });
+        s.createIndex('syncStatus', 'syncStatus', { unique: false });
+        s.createIndex('serverId', 'serverId', { unique: false });
+        s.createIndex('lastSyncAttemptAt', 'lastSyncAttemptAt', { unique: false });
+      }
+    
+      /* ---------------- CONTACT MEDIA ---------------- */
+    
+      if (!db.objectStoreNames.contains(STORE_CONTACT_MEDIA)) {
+        const s = db.createObjectStore(STORE_CONTACT_MEDIA, { keyPath: 'id' });
+        s.createIndex('contactId', 'contactId', { unique: false });
+        s.createIndex('type', 'type', { unique: false });
+        s.createIndex('createdAt', 'createdAt', { unique: false });
+        s.createIndex('syncStatus', 'syncStatus', { unique: false });
+      }
+    };
 
       // live followups — either create or upgrade indexes
       if (!db.objectStoreNames.contains(STORE_LIVE_FOLLOWUPS)) {
@@ -945,33 +979,51 @@ export async function listContactMediaByContact(contactId: string): Promise<Cont
     throw new Error(e?.message ?? 'Failed to list contact media.');
   }
 }
-
-export async function updateContactMedia(id: string, patch: Partial<ContactMedia>): Promise<void> {
+export async function updateContactMedia(
+  id: string,
+  patch: Partial<ContactMedia>
+): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(STORE_CONTACT_MEDIA, 'readwrite');
+  const tx = db.transaction(STORE_CONTACT_MEDIA, "readwrite");
   const store = tx.objectStore(STORE_CONTACT_MEDIA);
 
   try {
-    const existing = (await reqToPromise(store.get(id))) as ContactMedia | undefined;
+    const existing = (await reqToPromise(
+      store.get(id)
+    )) as ContactMedia | undefined;
 
     if (!existing) {
       await txDone(tx);
       return;
     }
 
-    const next = { ...existing, ...patch } as ContactMedia;
-    const normalized = applyMediaDefaults(next) as ContactMedia;
+    // Merge existing + patch
+    const merged: ContactMedia = {
+      ...existing,
+      ...patch,
+    };
 
-    store.put({ ...next, ...normalized });
+    // Normalize defaults (syncStatus / createdOffline safety)
+    const normalized = applyMediaDefaults(merged) as ContactMedia;
+
+    store.put({
+      ...merged,
+      ...normalized,
+    });
+
     await txDone(tx);
   } catch (e: any) {
-    throw new Error(e?.message ?? 'Failed to update contact media.');
+    throw new Error(e?.message ?? "Failed to update contact media.");
   }
 }
 
-export async function markContactMediaSynced(params: { id: string; serverId: string; fileUrl?: string }) {
+export async function markContactMediaSynced(params: {
+  id: string;
+  serverId: string;
+  fileUrl?: string;
+}): Promise<void> {
   await updateContactMedia(params.id, {
-    syncStatus: 'SYNCED',
+    syncStatus: "SYNCED",
     serverId: safeTrim(params.serverId) || undefined,
     fileUrl: safeTrim(params.fileUrl) || undefined,
     lastSyncAttemptAt: nowIso(),
@@ -979,23 +1031,31 @@ export async function markContactMediaSynced(params: { id: string; serverId: str
   });
 }
 
-export async function markContactMediaSyncError(params: { id: string; error: string }) {
+export async function markContactMediaSyncError(params: {
+  id: string;
+  error: string;
+}): Promise<void> {
   await updateContactMedia(params.id, {
-    syncStatus: 'ERROR',
+    syncStatus: "ERROR",
     lastSyncAttemptAt: nowIso(),
-    lastSyncError: safeTrim(params.error) || 'Unknown sync error',
+    lastSyncError: safeTrim(params.error) || "Unknown sync error",
   });
 }
 
 /* ---------------------------- LIVE FOLLOW-UPS --------------------------- */
 
-function applyLiveFollowUpDefaults(input: Partial<LiveFollowUp>): Partial<LiveFollowUp> {
-  const entryInitials = normalizeInitials(input.entryInitials) ?? 'UNK';
+function applyLiveFollowUpDefaults(
+  input: Partial<LiveFollowUp>
+): Partial<LiveFollowUp> {
+  const entryInitials = normalizeInitials(input.entryInitials) ?? "UNK";
 
-  const syncStatus: SyncStatus = (input.syncStatus as SyncStatus) ?? 'PENDING_SYNC';
+  const syncStatus: SyncStatus =
+    (input.syncStatus as SyncStatus) ?? "PENDING_SYNC";
 
   const createdOffline =
-    typeof input.createdOffline === 'boolean' ? input.createdOffline : isOfflineBestEffort();
+    typeof input.createdOffline === "boolean"
+      ? input.createdOffline
+      : isOfflineBestEffort();
 
   return {
     ...input,
@@ -1158,6 +1218,152 @@ export function parseCityCounty(raw: string): { city?: string; county?: string }
   if (parts.length >= 2) return { city: parts[0], county: parts[1] };
   return { city: v };
 }
+
+/* ---------------- RELATIONSHIPS (POWER OF 5) ---------------- */
+
+export type ContactRelationshipType =
+  | "KNOWS"
+  | "INTRODUCED"
+  | "RECRUITED"
+  | "INFLUENCES"
+  | "ENDORSED";
+
+export type ContactRelationship = {
+  id: string
+  fromContactId: string
+  toContactId: string
+  relationshipType: ContactRelationshipType
+  createdAt: string
+}
+
+const STORE_CONTACT_RELATIONSHIPS = "contact_relationships"
+
+/**
+ * Link two contacts together.
+ * Used for relational organizing / Power of 5.
+ */
+export async function linkContacts(params: {
+  fromContactId: string
+  toContactId: string
+  relationshipType: ContactRelationshipType
+}): Promise<ContactRelationship> {
+
+  const db = await openDb()
+
+  const relationship: ContactRelationship = {
+    id: uuid(),
+    fromContactId: params.fromContactId,
+    toContactId: params.toContactId,
+    relationshipType: params.relationshipType,
+    createdAt: nowIso(),
+  }
+
+  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readwrite")
+
+  try {
+    tx.objectStore(STORE_CONTACT_RELATIONSHIPS).add(relationship)
+    await txDone(tx)
+    return relationship
+  } catch (e: any) {
+    throw new Error(e?.message ?? "Failed to create relationship.")
+  }
+}
+
+/**
+ * List relationships for a contact
+ */
+export async function listContactRelationships(contactId: string) {
+
+  const db = await openDb()
+
+  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readonly")
+  const store = tx.objectStore(STORE_CONTACT_RELATIONSHIPS)
+
+  const all = await reqToPromise(store.getAll())
+
+  await txDone(tx)
+
+  return (all || []).filter(
+    (r: ContactRelationship) =>
+      r.fromContactId === contactId || r.toContactId === contactId
+  )
+}
+
+/* ---------------- BULK IMPORT ENGINE ---------------- */
+
+/**
+ * Normalize spreadsheet / CSV rows before ingestion
+ */
+export function normalizeImportRow(row: Record<string, any>): Partial<Contact> {
+
+  const out: Partial<Contact> = {}
+
+  const keys = Object.keys(row)
+
+  for (const key of keys) {
+
+    const k = key.toLowerCase()
+
+    const value = row[key]
+
+    if (!value) continue
+
+    if (k.includes("name")) out.fullName = safeTrim(value)
+
+    if (k.includes("phone") || k.includes("mobile") || k.includes("cell")) {
+      out.phone = normalizePhone(value)
+    }
+
+    if (k.includes("email")) out.email = safeTrim(value)
+
+    if (k.includes("city")) out.city = safeTrim(value)
+
+    if (k.includes("county")) out.county = safeTrim(value)
+
+    if (k.includes("zip")) out.zip = safeTrim(value)
+
+    if (k.includes("note")) out.conversationNotes = safeTrim(value)
+  }
+
+  return out
+}
+
+/**
+ * Bulk import contacts
+ * Used by CSV / spreadsheet ingestion
+ */
+export async function bulkUpsertContacts(
+  rows: Record<string, any>[],
+  originType: OriginType = "IMPORT_CSV"
+) {
+
+  const created: Contact[] = []
+
+  for (const row of rows) {
+
+    const normalized = normalizeImportRow(row)
+
+    if (!normalized.fullName && !normalized.email && !normalized.phone) {
+      continue
+    }
+
+    const contact = await upsertContact({
+      ...normalized,
+      createdFrom: originType,
+    })
+
+    await addOrigin({
+      contactId: contact.id,
+      originType,
+      rawPayload: row,
+    })
+
+    created.push(contact)
+  }
+
+  return created
+}
+
 // ---------------- CONTACT HELPERS ----------------
 
 export async function getContactById(id: string): Promise<Contact | null> {

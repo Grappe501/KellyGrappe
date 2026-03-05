@@ -20,7 +20,7 @@ import React, {
     Textarea,
   } from '../../shared/components/FormControls';
   
-  import { processIntake } from '../../shared/utils/intakePipeline';
+  import { processIntake } from '../intake/processIntake';
   
   /* ================================
      TYPES

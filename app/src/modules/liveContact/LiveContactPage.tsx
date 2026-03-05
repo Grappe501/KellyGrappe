@@ -34,6 +34,10 @@ import {
   upsertContact,
 } from "../../shared/utils/contactsDb"
 
+/**
+ * Utility helpers
+ */
+
 function safeTrim(v: unknown) {
   return (v ?? "").toString().trim()
 }
@@ -55,7 +59,6 @@ function splitCsv(raw?: string) {
 
 /**
  * Safely convert numeric form fields
- * Accepts number | "" | undefined
  */
 function numOrUndefined(v: number | "" | undefined) {
   if (typeof v === "number" && Number.isFinite(v)) return v
@@ -179,6 +182,27 @@ export default function LiveContactPage() {
     const t = setTimeout(() => setJustSaved(false), 1500)
     return () => clearTimeout(t)
   }, [justSaved])
+
+  /**
+   * Attempt geolocation on page load
+   * (future use: auto-fill city/county/precinct)
+   */
+  useEffect(() => {
+    if (!navigator.geolocation) return
+
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        // Reserved for address intelligence integration
+      },
+      () => {
+        // silent failure — field canvassing shouldn't break
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 4000,
+      }
+    )
+  }, [])
 
   /**
    * Autofill from business card OCR
@@ -432,7 +456,7 @@ export default function LiveContactPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => nav("/followups")}
+                onClick={() => nav("/live-contacts")}
               >
                 Follow Ups
               </Button>

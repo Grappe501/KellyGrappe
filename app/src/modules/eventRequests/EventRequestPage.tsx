@@ -12,7 +12,7 @@ import {
   Textarea,
 } from '../../shared/components/FormControls';
 import { submitModule } from '../../shared/utils/apiClient';
-import { processIntake } from '../../shared/utils/intakePipeline';
+import { processIntake } from '../intake/processIntake';
 
 /* -----------------------------
    Types

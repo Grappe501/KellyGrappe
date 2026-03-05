@@ -24,6 +24,16 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Allow longer runtime for AI / OCR / import tasks
+[functions."scan-card"]
+  timeout = 26
+
+[functions."followup-ai"]
+  timeout = 26
+
+[functions."event-assist"]
+  timeout = 26
+
 # ----------------------------------------------------
 # SPA Routing (React Router)
 # ----------------------------------------------------
@@ -39,11 +49,52 @@
 
 [[headers]]
   for = "/*"
+
   [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+  # Prevent iframe embedding
+  X-Frame-Options = "DENY"
+
+  # Prevent MIME sniffing
+  X-Content-Type-Options = "nosniff"
+
+  # Stronger referrer policy
+  Referrer-Policy = "strict-origin-when-cross-origin"
+
+  # Enable device capabilities required for field organizing
+  # (camera + geolocation used for canvassing + business cards)
+  Permissions-Policy = """
+  camera=(self),
+  microphone=(self),
+  geolocation=(self),
+  fullscreen=(self),
+  clipboard-read=(self),
+  clipboard-write=(self)
+  """
+
+  # Basic XSS protection layer
+  X-XSS-Protection = "1; mode=block"
+
+  # Content security policy for APIs used in this project
+  Content-Security-Policy = """
+  default-src 'self';
+  img-src 'self' data: blob: https:;
+  media-src 'self' blob:;
+  font-src 'self' data:;
+  style-src 'self' 'unsafe-inline';
+  script-src 'self' 'unsafe-inline';
+  connect-src
+    'self'
+    https://*.supabase.co
+    https://api.openai.com
+    https://maps.googleapis.com
+    https://maps.gstatic.com
+    https://*.googleapis.com
+    https://*.netlify.app
+    https://*.twilio.com
+    https://api.sendgrid.com;
+  frame-src https://*.google.com;
+  """
 
 # ----------------------------------------------------
 # Static Asset Caching (Vite bundles)
@@ -51,6 +102,7 @@
 
 [[headers]]
   for = "/assets/*"
+
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
@@ -60,5 +112,16 @@
 
 [[headers]]
   for = "/sw.js"
+
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# ----------------------------------------------------
+# Manifest Cache Control
+# ----------------------------------------------------
+
+[[headers]]
+  for = "/manifest.webmanifest"
+
   [headers.values]
     Cache-Control = "no-cache"

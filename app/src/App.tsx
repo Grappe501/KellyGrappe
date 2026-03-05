@@ -7,12 +7,14 @@ import { syncPendingFollowUps } from "./shared/utils/syncEngine";
 
 /**
  * Central route registry — prevents “magic strings” across the app.
- * Add all new routes here first.
  */
 export const ROUTES = {
   ROOT: "/",
+
   EVENT_REQUEST: "/event-request",
-  TEAM_SIGNUP: "/team-signup",
+
+  CONTACT_IMPORT: "/contact-import",
+
   THANK_YOU: "/thank-you",
 
   LIVE_CONTACT: "/live-contact",
@@ -27,20 +29,25 @@ export const ROUTES = {
 const SYNC_INTERVAL_MS = 15_000;
 
 /**
- * Lazy load pages/modules to keep initial load fast as the system grows.
+ * Lazy loaded pages
  */
+
 const LandingPage = React.lazy(() => import("./pages/LandingPage"));
+
 const EventRequestPage = React.lazy(
   () => import("./modules/eventRequests/EventRequestPage")
 );
-const TeamSignupPage = React.lazy(
+
+const ContactImportPage = React.lazy(
   () => import("./modules/teamSignup/TeamSignupPage")
 );
+
 const ThankYouPage = React.lazy(() => import("./pages/ThankYouPage"));
 
 const LiveContactPage = React.lazy(
   () => import("./modules/liveContact/LiveContactPage")
 );
+
 const LiveContactsListPage = React.lazy(
   () => import("./modules/liveContact/LiveContactsListPage")
 );
@@ -48,6 +55,7 @@ const LiveContactsListPage = React.lazy(
 const ContactsDirectoryPage = React.lazy(
   () => import("./modules/contacts/ContactsDirectoryPage")
 );
+
 const ContactProfilePage = React.lazy(
   () => import("./modules/contacts/ContactProfilePage")
 );
@@ -58,7 +66,6 @@ const BusinessCardScanPage = React.lazy(
 
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 
-// DEV-only overlay (global, safe, production-off)
 const DevDebugOverlay = React.lazy(
   () => import("./shared/components/DevDebugOverlay")
 );
@@ -109,11 +116,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    if (isMounted) {
-      runSync("initial");
-    }
+    runSync("initial");
 
     const interval = window.setInterval(() => {
       runSync("interval");
@@ -138,9 +141,7 @@ export default function App() {
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      isMounted = false;
       window.clearInterval(interval);
-
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
@@ -150,8 +151,11 @@ export default function App() {
   const routes: AppRoute[] = useMemo(
     () => [
       { path: ROUTES.ROOT, element: <LandingPage /> },
+
       { path: ROUTES.EVENT_REQUEST, element: <EventRequestPage /> },
-      { path: ROUTES.TEAM_SIGNUP, element: <TeamSignupPage /> },
+
+      { path: ROUTES.CONTACT_IMPORT, element: <ContactImportPage /> },
+
       { path: ROUTES.THANK_YOU, element: <ThankYouPage /> },
 
       { path: ROUTES.LIVE_CONTACT, element: <LiveContactPage /> },
@@ -162,7 +166,6 @@ export default function App() {
 
       { path: ROUTES.BUSINESS_CARD_SCAN, element: <BusinessCardScanPage /> },
 
-      // True 404 route
       { path: "*", element: <NotFoundPage /> },
     ],
     []

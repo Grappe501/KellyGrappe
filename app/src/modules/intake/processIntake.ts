@@ -22,14 +22,16 @@ import {
   type Contact,
   type OriginType,
   type VolunteerProfile,
-} from './contactsDb';
+} from "./contactsDb"; // ✅ same folder import (shared/utils)
+
+/* --------------------------------- UTILS -------------------------------- */
 
 function safeTrim(v: unknown): string {
-  return (v ?? '').toString().trim();
+  return (v ?? "").toString().trim();
 }
 
 function normalizePhone(raw: string): string {
-  return safeTrim(raw).replace(/\D/g, '');
+  return safeTrim(raw).replace(/\D/g, "");
 }
 
 async function postJsonWithTimeout(
@@ -38,17 +40,19 @@ async function postJsonWithTimeout(
   timeoutMs = 5000
 ): Promise<Response> {
   const controller = new AbortController();
-  const t = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  // ✅ SSR-safe timer usage (no direct window dependency)
+  const t = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify(body),
     });
   } finally {
-    window.clearTimeout(t);
+    globalThis.clearTimeout(t);
   }
 }
 
@@ -60,12 +64,12 @@ async function postJsonWithTimeout(
  * - If the endpoint doesn't exist yet, we do nothing.
  * - If it fails, the local follow-up still exists and UI still works.
  *
- * Next step in this thread: implement /.netlify/functions/followup-upsert
+ * Next step: implement /.netlify/functions/followup-upsert
  * and a Supabase followups table, then /live-contacts loads from server.
  */
 async function tryEnqueueServerFollowUp(payload: Record<string, unknown>) {
   try {
-    const endpoint = '/.netlify/functions/followup-upsert';
+    const endpoint = "/.netlify/functions/followup-upsert";
     const res = await postJsonWithTimeout(endpoint, payload, 7000);
 
     // If the endpoint isn't deployed yet, Netlify will return 404.
@@ -79,6 +83,8 @@ async function tryEnqueueServerFollowUp(payload: Record<string, unknown>) {
   }
 }
 
+/* --------------------------------- TYPES -------------------------------- */
+
 export type IntakeContactInput = Partial<Contact> & {
   fullName?: string;
   email?: string;
@@ -88,15 +94,18 @@ export type IntakeContactInput = Partial<Contact> & {
 export type IntakeFollowUpInput = {
   followUpNeeded?: boolean;
   followUpNotes?: string;
+
   sourceLabel?: string;
   location?: string;
   notes?: string;
+
   automationEligible?: boolean;
   permissionToContact?: boolean;
 
   facebookConnected?: boolean;
   facebookProfileName?: string;
   facebookHandle?: string;
+  facebookUrl?: string;
 };
 
 export type IntakeVolunteerExtras = {
@@ -122,21 +131,26 @@ export type ProcessIntakeParams = {
   eventLead?: IntakeEventLeadExtras;
 };
 
+/* --------------------------------- API ---------------------------------- */
+
 export async function processIntake(params: ProcessIntakeParams): Promise<{
   contact: Contact;
   followUpId: string;
   originId: string;
 }> {
+  // Normalize identity
   const email = safeTrim(params.contact.email).toLowerCase() || undefined;
   const phoneRaw = safeTrim(params.contact.phone);
   const phone = phoneRaw ? normalizePhone(phoneRaw) : undefined;
 
+  // 1) Canonical Contact
   const contact = await upsertContact({
     ...params.contact,
     email,
     phone,
   });
 
+  // 2) Origin log
   const origin = await addOrigin({
     contactId: contact.id,
     originType: params.originType,
@@ -168,18 +182,19 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
     });
   }
 
+  // 3) Local follow-up row (must exist no matter what)
   const follow = params.followUp ?? {};
   const followUpNeeded =
-    typeof follow.followUpNeeded === 'boolean' ? follow.followUpNeeded : true;
+    typeof follow.followUpNeeded === "boolean" ? follow.followUpNeeded : true;
 
   const followUp = await addLiveFollowUp({
     contactId: contact.id,
-    followUpStatus: followUpNeeded ? 'NEW' : 'COMPLETED',
+    followUpStatus: followUpNeeded ? "NEW" : "COMPLETED",
     followUpNotes: safeTrim(follow.followUpNotes) || undefined,
     followUpCompletedAt: followUpNeeded ? null : new Date().toISOString(),
     archived: false,
 
-    // list display
+    // list display snapshot
     name: contact.fullName,
     phone: contact.phone,
     email: contact.email,
@@ -190,16 +205,16 @@ export async function processIntake(params: ProcessIntakeParams): Promise<{
     permissionToContact: !!follow.permissionToContact,
 
     facebookConnected:
-      typeof follow.facebookConnected === 'boolean'
+      typeof follow.facebookConnected === "boolean"
         ? follow.facebookConnected
         : contact.facebookConnected,
     facebookProfileName:
       safeTrim(follow.facebookProfileName) || contact.facebookProfileName,
     facebookHandle: safeTrim(follow.facebookHandle) || contact.facebookHandle,
+    facebookUrl: safeTrim(follow.facebookUrl) || contact.facebookUrl,
   });
 
-  // Best-effort: enqueue server-side follow-up (global board)
-  // This will be fully activated once followup-upsert Netlify function is implemented.
+  // 4) Best-effort server enqueue (global board)
   void tryEnqueueServerFollowUp({
     version: 1,
     originType: params.originType,
