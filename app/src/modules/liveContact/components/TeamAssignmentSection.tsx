@@ -1,7 +1,7 @@
 import React from "react";
 import { HelpText, Label, Button } from "../../../shared/components/FormControls";
 import type { LiveContactForm } from "../types/LiveContactForm";
-import type { CampaignTeam } from "../../../shared/utils/contactsDb";
+import type { CampaignTeam } from "../../../shared/utils/db/contactsDb";
 
 /**
  * Campaign team definitions

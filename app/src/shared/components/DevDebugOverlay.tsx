@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 // Optional: show pending followups queue size (offline sync health)
-import { listLiveFollowUpsPendingSync } from "../utils/contactsDb";
+import { listLiveFollowUpsPendingSync } from "../utils/db/contactsDb";
 
 type SyncState = {
   status: "idle" | "started" | "completed" | "error";

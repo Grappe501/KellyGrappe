@@ -7,8 +7,17 @@ import { Input, Label } from "../../shared/components/FormControls";
 
 import {
   listContactsDirectoryRows,
-  ContactDirectoryRow,
-} from "../../shared/utils/contactsDb";
+  ContactDirectoryRow as DbContactDirectoryRow,
+} from "../../shared/utils/db/contactsDb";
+
+/**
+ * Extend DB row type with optional campaign workflow fields.
+ * This prevents TypeScript breakage when schema evolves.
+ */
+type ContactDirectoryRow = DbContactDirectoryRow & {
+  followUpStatus?: string;
+  followUpTargetAt?: string;
+};
 
 /**
  * Priority scoring for campaign follow-up workflow.
@@ -32,7 +41,7 @@ function followUpPriority(status?: string): number {
 }
 
 /**
- * Visual indicator color for follow-up status
+ * Row color styling
  */
 function rowStyle(status?: string): string {
   switch (status) {
@@ -65,7 +74,7 @@ export default function ContactsDirectoryPage() {
   async function loadContacts() {
     try {
       const rows = await listContactsDirectoryRows();
-      setContacts(Array.isArray(rows) ? rows : []);
+      setContacts((rows ?? []) as ContactDirectoryRow[]);
     } catch (err) {
       console.error("Failed to load contacts directory", err);
     } finally {
@@ -74,7 +83,7 @@ export default function ContactsDirectoryPage() {
   }
 
   /**
-   * Search filtering
+   * Filter + sort
    */
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -97,14 +106,14 @@ export default function ContactsDirectoryPage() {
     }
 
     /**
-     * Sort by campaign priority
+     * Campaign priority sorting
      */
     rows = [...rows].sort((a, b) => {
-      const p =
+      const priority =
         followUpPriority(a.followUpStatus) -
         followUpPriority(b.followUpStatus);
 
-      if (p !== 0) return p;
+      if (priority !== 0) return priority;
 
       if (a.followUpTargetAt && b.followUpTargetAt) {
         return a.followUpTargetAt.localeCompare(b.followUpTargetAt);
@@ -122,6 +131,7 @@ export default function ContactsDirectoryPage() {
   return (
     <Container>
       <Card>
+
         <CardHeader
           title="Contacts Directory"
           subtitle="Campaign contact intelligence system"
@@ -151,6 +161,7 @@ export default function ContactsDirectoryPage() {
           {/* DIRECTORY TABLE */}
           {!loading && (
             <div className="overflow-x-auto">
+
               <table className="w-full text-sm border">
 
                 <thead className="bg-slate-100">
@@ -166,20 +177,21 @@ export default function ContactsDirectoryPage() {
                 <tbody>
 
                   {filtered.map((c) => {
-                    const location =
-                      [c.city, c.county].filter(Boolean).join(" ");
 
-                    const tags =
-                      (c.tags ?? []).slice(0, 3).join(", ");
+                    const location = [c.city, c.county]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    const tags = (c.tags ?? [])
+                      .slice(0, 3)
+                      .join(", ");
 
                     const followStatus =
                       c.followUpStatus ?? "NONE";
 
                     const followTarget =
                       c.followUpTargetAt
-                        ? new Date(
-                            c.followUpTargetAt
-                          ).toLocaleDateString()
+                        ? new Date(c.followUpTargetAt).toLocaleDateString()
                         : "";
 
                     return (
@@ -188,9 +200,7 @@ export default function ContactsDirectoryPage() {
                         className={`border-t cursor-pointer hover:bg-slate-50 ${rowStyle(
                           c.followUpStatus
                         )}`}
-                        onClick={() =>
-                          navigate(`/contacts/${c.id}`)
-                        }
+                        onClick={() => navigate(`/contacts/${c.id}`)}
                       >
 
                         <td className="p-2 font-medium">
@@ -229,11 +239,14 @@ export default function ContactsDirectoryPage() {
                   )}
 
                 </tbody>
+
               </table>
+
             </div>
           )}
 
         </CardContent>
+
       </Card>
     </Container>
   );

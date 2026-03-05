@@ -5,7 +5,7 @@ import Container from "../../shared/components/Container";
 import { Card, CardHeader, CardContent } from "../../shared/components/Card";
 import { Input, Label, Textarea, Button } from "../../shared/components/FormControls";
 
-import { getContactById, updateContact, Contact } from "../../shared/utils/contactsDb";
+import { getContactById, updateContact, Contact } from "../../shared/utils/db/contactsDb";
 
 export default function ContactProfilePage() {
   const { id } = useParams();

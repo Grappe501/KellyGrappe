@@ -1,5 +1,5 @@
 import type { LiveContactForm } from '../types/LiveContactForm';
-import { parseCityCounty, type LiveFollowUp } from '../../../shared/utils/contactsDb';
+import { parseCityCounty, type LiveFollowUp } from '../../../shared/utils/db/contactsDb';
 import { normalizePhone, safeTrim, uniqTags } from '../utils/contactFormHelpers';
 
 export function buildLocationLabel(form: LiveContactForm) {

@@ -9,7 +9,7 @@ import type {
   BestContactMethod,
   ContactCategory,
   SupportLevel,
-} from "../../shared/utils/contactsDb"
+} from "../../shared/utils/db/contactsDb"
 
 import type { LiveContactForm } from "./types/LiveContactForm"
 
@@ -32,7 +32,7 @@ import {
   addLiveFollowUp,
   addOrigin,
   upsertContact,
-} from "../../shared/utils/contactsDb"
+} from "../../shared/utils/db/contactsDb"
 
 /**
  * Utility helpers

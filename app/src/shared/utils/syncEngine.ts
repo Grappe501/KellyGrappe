@@ -4,7 +4,7 @@ import {
     listLiveFollowUps,
     updateLiveFollowUp,
     type LiveFollowUp,
-  } from './contactsDb';
+  } from './db/contactsDb';
   
   function nowIso() {
     return new Date().toISOString();

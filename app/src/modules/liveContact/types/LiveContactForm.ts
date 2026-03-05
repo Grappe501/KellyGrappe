@@ -3,7 +3,7 @@ import type {
   CampaignTeam,
   ContactCategory,
   SupportLevel,
-} from "../../../shared/utils/contactsDb";
+} from "../../../shared/utils/db/contactsDb";
 
 /**
  * Canonical schema for the Live Contact intake form.
