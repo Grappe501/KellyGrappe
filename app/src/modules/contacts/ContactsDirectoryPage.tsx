@@ -14,7 +14,7 @@ import {
  * Priority scoring for campaign follow-up workflow.
  * Lower number = higher priority.
  */
-function followUpPriority(status?: string) {
+function followUpPriority(status?: string): number {
   switch (status) {
     case "CRITICAL":
       return 1;
@@ -34,7 +34,7 @@ function followUpPriority(status?: string) {
 /**
  * Visual indicator color for follow-up status
  */
-function rowStyle(status?: string) {
+function rowStyle(status?: string): string {
   switch (status) {
     case "CRITICAL":
       return "bg-red-50";
@@ -65,7 +65,7 @@ export default function ContactsDirectoryPage() {
   async function loadContacts() {
     try {
       const rows = await listContactsDirectoryRows();
-      setContacts(rows);
+      setContacts(Array.isArray(rows) ? rows : []);
     } catch (err) {
       console.error("Failed to load contacts directory", err);
     } finally {
@@ -83,13 +83,15 @@ export default function ContactsDirectoryPage() {
 
     if (q) {
       rows = rows.filter((c) => {
+        const tagText = (c.tags ?? []).join(" ").toLowerCase();
+
         return (
           c.fullName?.toLowerCase().includes(q) ||
           c.phone?.includes(q) ||
           c.email?.toLowerCase().includes(q) ||
           c.city?.toLowerCase().includes(q) ||
           c.county?.toLowerCase().includes(q) ||
-          c.tags?.join(" ").toLowerCase().includes(q)
+          tagText.includes(q)
         );
       });
     }
@@ -98,7 +100,10 @@ export default function ContactsDirectoryPage() {
      * Sort by campaign priority
      */
     rows = [...rows].sort((a, b) => {
-      const p = followUpPriority(a.followUpStatus) - followUpPriority(b.followUpStatus);
+      const p =
+        followUpPriority(a.followUpStatus) -
+        followUpPriority(b.followUpStatus);
+
       if (p !== 0) return p;
 
       if (a.followUpTargetAt && b.followUpTargetAt) {
@@ -138,7 +143,9 @@ export default function ContactsDirectoryPage() {
 
           {/* LOADING */}
           {loading && (
-            <div className="text-sm text-slate-500">Loading contacts…</div>
+            <div className="text-sm text-slate-500">
+              Loading contacts…
+            </div>
           )}
 
           {/* DIRECTORY TABLE */}
@@ -158,39 +165,57 @@ export default function ContactsDirectoryPage() {
 
                 <tbody>
 
-                  {filtered.map((c) => (
-                    <tr
-                      key={c.id}
-                      className={`border-t cursor-pointer hover:bg-slate-50 ${rowStyle(
-                        c.followUpStatus
-                      )}`}
-                      onClick={() => navigate(`/contacts/${c.id}`)}
-                    >
+                  {filtered.map((c) => {
+                    const location =
+                      [c.city, c.county].filter(Boolean).join(" ");
 
-                      <td className="p-2 font-medium">
-                        {c.fullName ?? "Unnamed Contact"}
-                      </td>
+                    const tags =
+                      (c.tags ?? []).slice(0, 3).join(", ");
 
-                      <td className="p-2">
-                        {c.city ?? ""} {c.county ? `(${c.county})` : ""}
-                      </td>
+                    const followStatus =
+                      c.followUpStatus ?? "NONE";
 
-                      <td className="p-2">
-                        {(c.tags ?? []).slice(0, 3).join(", ")}
-                      </td>
+                    const followTarget =
+                      c.followUpTargetAt
+                        ? new Date(
+                            c.followUpTargetAt
+                          ).toLocaleDateString()
+                        : "";
 
-                      <td className="p-2">
-                        {c.followUpStatus ?? "NONE"}
-                      </td>
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`border-t cursor-pointer hover:bg-slate-50 ${rowStyle(
+                          c.followUpStatus
+                        )}`}
+                        onClick={() =>
+                          navigate(`/contacts/${c.id}`)
+                        }
+                      >
 
-                      <td className="p-2">
-                        {c.followUpTargetAt
-                          ? new Date(c.followUpTargetAt).toLocaleDateString()
-                          : ""}
-                      </td>
+                        <td className="p-2 font-medium">
+                          {c.fullName ?? "Unnamed Contact"}
+                        </td>
 
-                    </tr>
-                  ))}
+                        <td className="p-2">
+                          {location}
+                        </td>
+
+                        <td className="p-2">
+                          {tags}
+                        </td>
+
+                        <td className="p-2">
+                          {followStatus}
+                        </td>
+
+                        <td className="p-2">
+                          {followTarget}
+                        </td>
+
+                      </tr>
+                    );
+                  })}
 
                   {filtered.length === 0 && (
                     <tr>

@@ -166,8 +166,20 @@ export type LiveContactForm = {
    */
   followUpPriority: string;
 
-  /** Follow-up target date */
+  /**
+   * Primary follow-up date field
+   */
   followUpDate: string;
+
+  /**
+   * Compatibility field used by:
+   * - FollowUpSection
+   * - followupPayloadBuilder
+   * - directory modules
+   *
+   * Both fields are kept to prevent schema breakage.
+   */
+  followUpTargetAt: string;
 
   /** Organizer notes for follow-up */
   followUpNotes: string;
