@@ -7,14 +7,10 @@
   command = "npm run build"
   publish = "dist"
 
-# ----------------------------------------------------
-# Environment Settings
-# ----------------------------------------------------
-
 [build.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
-  NPM_FLAGS = "--legacy-peer-deps"
+  NPM_FLAGS = "--legacy-peer-deps --no-audit --no-fund"
 
 # ----------------------------------------------------
 # Netlify Functions
@@ -24,7 +20,6 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Allow longer runtime for AI / OCR / import tasks
 [functions."scan-card"]
   timeout = 26
 
@@ -35,7 +30,7 @@
   timeout = 26
 
 # ----------------------------------------------------
-# SPA Routing (React Router)
+# SPA Routing
 # ----------------------------------------------------
 
 [[redirects]]
@@ -51,18 +46,11 @@
   for = "/*"
 
   [headers.values]
-
-  # Prevent iframe embedding
   X-Frame-Options = "DENY"
-
-  # Prevent MIME sniffing
   X-Content-Type-Options = "nosniff"
-
-  # Stronger referrer policy
   Referrer-Policy = "strict-origin-when-cross-origin"
+  X-XSS-Protection = "1; mode=block"
 
-  # Enable device capabilities required for field organizing
-  # (camera + geolocation used for canvassing + business cards)
   Permissions-Policy = """
   camera=(self),
   microphone=(self),
@@ -72,10 +60,6 @@
   clipboard-write=(self)
   """
 
-  # Basic XSS protection layer
-  X-XSS-Protection = "1; mode=block"
-
-  # Content security policy for APIs used in this project
   Content-Security-Policy = """
   default-src 'self';
   img-src 'self' data: blob: https:;
@@ -97,31 +81,31 @@
   """
 
 # ----------------------------------------------------
-# Static Asset Caching (Vite bundles)
+# Static Asset Caching
 # ----------------------------------------------------
 
 [[headers]]
   for = "/assets/*"
 
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+  Cache-Control = "public, max-age=31536000, immutable"
 
 # ----------------------------------------------------
-# Service Worker Cache Control
+# Service Worker
 # ----------------------------------------------------
 
 [[headers]]
   for = "/sw.js"
 
   [headers.values]
-    Cache-Control = "no-cache"
+  Cache-Control = "no-cache"
 
 # ----------------------------------------------------
-# Manifest Cache Control
+# Manifest
 # ----------------------------------------------------
 
 [[headers]]
   for = "/manifest.webmanifest"
 
   [headers.values]
-    Cache-Control = "no-cache"
+  Cache-Control = "no-cache"
