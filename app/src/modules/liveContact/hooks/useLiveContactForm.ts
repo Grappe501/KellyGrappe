@@ -20,6 +20,8 @@ export function defaultLiveContactForm(): LiveContactForm {
     phone: "",
     email: "",
 
+    permissionToContact: false,
+
     city: "",
     county: "",
     state: "AR",
@@ -35,11 +37,15 @@ export function defaultLiveContactForm(): LiveContactForm {
     bestContactMethod: "",
     teamAssignments: [],
 
+    rolePotentialCsv: "",
+    tags: [],
+
     metWhere: "",
     metWhereDetails: "",
     eventName: "",
     introducedBy: "",
     organization: "",
+    affiliation: "",
 
     topIssue: "",
     conversationNotes: "",
@@ -65,12 +71,15 @@ export function defaultLiveContactForm(): LiveContactForm {
     fundraisingPotential: "",
     volunteerPotential: "",
 
-    tags: [],
-
-    permissionToContact: false,
     followUpNeeded: true,
-    followUpNotes: "",
+    followUpType: "CALL",
+    followUpPriority: "NORMAL",
+
+    followUpDate: "",
     followUpTargetAt: "",
+
+    followUpNotes: "",
+    automationEligible: true,
 
     profilePhotoDataUrl: "",
     businessCardDataUrl: "",
@@ -117,7 +126,11 @@ export function useLiveContactForm() {
    * Optionally preserve key fields (like initials).
    */
   const reset = useCallback(
-    (preserve?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>) => {
+    (
+      preserve?: Partial<
+        Pick<LiveContactForm, "entryInitials" | "permissionToContact">
+      >
+    ) => {
       setForm({
         ...defaultLiveContactForm(),
         ...preserve,
@@ -139,6 +152,7 @@ export function useLiveContactForm() {
    */
   const readyToSave = useMemo(() => {
     const hasIdentity = !!safeTrim(form.fullName);
+
     const hasContactMethod =
       !!safeTrim(form.phone) || !!safeTrim(form.email);
 
@@ -180,6 +194,7 @@ export function useLiveContactForm() {
 
       organization: safeTrim(next.organization),
       introducedBy: safeTrim(next.introducedBy),
+      affiliation: safeTrim(next.affiliation),
 
       conversationNotes: safeTrim(next.conversationNotes),
       followUpNotes: safeTrim(next.followUpNotes),

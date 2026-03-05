@@ -38,6 +38,9 @@ function safeTrim(v: unknown) {
   return (v ?? "").toString().trim()
 }
 
+/**
+ * Convert CSV to unique string array
+ */
 function splitCsv(raw?: string) {
   const v = safeTrim(raw)
   if (!v) return undefined
@@ -50,14 +53,25 @@ function splitCsv(raw?: string) {
   return out.length ? Array.from(new Set(out)) : undefined
 }
 
-function numOrUndefined(v: number | "") {
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined
+/**
+ * Safely convert numeric form fields
+ * Accepts number | "" | undefined
+ */
+function numOrUndefined(v: number | "" | undefined) {
+  if (typeof v === "number" && Number.isFinite(v)) return v
+  return undefined
 }
 
-function enumOrUndefined<T extends string>(v: T | ""): T | undefined {
+/**
+ * Safely convert enum string
+ */
+function enumOrUndefined<T extends string>(v: T | "" | undefined): T | undefined {
   return v ? (v as T) : undefined
 }
 
+/**
+ * Build new blank form while preserving key fields
+ */
 function makeEmptyForm(
   keep?: Partial<Pick<LiveContactForm, "entryInitials" | "permissionToContact">>
 ): LiveContactForm {
@@ -120,7 +134,10 @@ function makeEmptyForm(
     followUpNeeded: true,
     followUpType: "CALL",
     followUpPriority: "NORMAL",
+
     followUpDate: "",
+    followUpTargetAt: "",
+
     followUpNotes: "",
     automationEligible: true,
 
@@ -140,6 +157,9 @@ export default function LiveContactPage() {
   const { form, setForm, update, readyToSave, emailValid, normalizeBeforeSave } =
     useLiveContactForm()
 
+  /**
+   * Fast canvassing readiness
+   */
   const speedReady = useMemo(() => {
     const hasInitials = safeTrim(form.entryInitials).length >= 2
 
@@ -151,12 +171,18 @@ export default function LiveContactPage() {
     return hasInitials && Boolean(hasIdentity)
   }, [form])
 
+  /**
+   * Auto clear success indicator
+   */
   useEffect(() => {
     if (!justSaved) return
     const t = setTimeout(() => setJustSaved(false), 1500)
     return () => clearTimeout(t)
   }, [justSaved])
 
+  /**
+   * Autofill from business card OCR
+   */
   function onBusinessCardExtracted(data: any) {
     try {
       const next: Partial<LiveContactForm> = {}
@@ -183,6 +209,9 @@ export default function LiveContactPage() {
     } catch {}
   }
 
+  /**
+   * Submit form
+   */
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -250,6 +279,9 @@ export default function LiveContactPage() {
         createdFrom: "LIVE_FIELD",
       })
 
+      /**
+       * Record origin
+       */
       await addOrigin({
         contactId: contact.id,
         originType: "LIVE_FIELD",
@@ -258,6 +290,9 @@ export default function LiveContactPage() {
         rawPayload: { form: normalized },
       })
 
+      /**
+       * Attach media
+       */
       if (normalized.profilePhotoDataUrl)
         await addContactMedia({
           contactId: contact.id,
@@ -281,11 +316,19 @@ export default function LiveContactPage() {
 
       const followUpStatus = normalized.followUpNeeded ? "NEW" : "COMPLETED"
 
+      /**
+       * Create follow-up record
+       */
       await addLiveFollowUp({
         contactId: contact.id,
         followUpStatus,
         followUpNotes: normalized.followUpNotes,
-        followUpTargetAt: normalized.followUpDate || undefined,
+
+        followUpTargetAt:
+          normalized.followUpTargetAt ||
+          normalized.followUpDate ||
+          undefined,
+
         followUpCompletedAt:
           followUpStatus === "COMPLETED"
             ? new Date().toISOString()
@@ -312,6 +355,9 @@ export default function LiveContactPage() {
         bestContactMethod: enumOrUndefined<BestContactMethod>(normalized.bestContactMethod),
       })
 
+      /**
+       * Attempt background sync
+       */
       try {
         await syncPendingFollowUps()
       } catch {}
@@ -324,6 +370,7 @@ export default function LiveContactPage() {
           permissionToContact: normalized.permissionToContact,
         })
       )
+
     } catch (err: any) {
       setSubmitError(err?.message ?? "Save failed")
     } finally {

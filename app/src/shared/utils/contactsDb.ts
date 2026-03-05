@@ -154,12 +154,28 @@ export type Contact = {
 
 export type ContactDirectoryRow = {
   id: string
+
   fullName?: string
   phone?: string
   email?: string
+
   city?: string
   county?: string
+
+  category?: string
+  supportLevel?: string
+
   tags?: string[]
+
+  /**
+   * Follow-up pipeline status
+   */
+  followUpStatus?: "CRITICAL" | "NEW" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED"
+
+  /**
+   * Target follow-up date
+   */
+  followUpTargetAt?: string
 }
 
 export async function listContactsDirectoryRows(): Promise<ContactDirectoryRow[]> {
