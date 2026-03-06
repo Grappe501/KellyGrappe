@@ -2,47 +2,6 @@ import { useNavigate } from "react-router-dom";
 import Container from "../shared/components/Container";
 import { Card, CardHeader, CardContent } from "../shared/components/Card";
 import { Button } from "../shared/components/FormControls";
-import { ROUTES } from "../shared/routes";
-
-const actions = [
-  {
-    title: "Import Contacts",
-    body: "Pull volunteer and supporter lists into the CRM, auto-create follow-up tasks, and get outreach moving fast.",
-    cta: "Open Import Center",
-    route: ROUTES.CONTACT_IMPORT,
-    primary: true,
-  },
-  {
-    title: "Contacts Command Center",
-    body: "Search people by hashtag, location, role potential, and AI-ranked mission fit. Open profiles and enrich them over time.",
-    cta: "Open Contacts",
-    route: ROUTES.CONTACTS,
-  },
-  {
-    title: "Live Contact Entry",
-    body: "Capture field conversations, event encounters, and walk-list conversations from the ground in real time.",
-    cta: "Open Field Intake",
-    route: ROUTES.LIVE_CONTACT,
-  },
-  {
-    title: "Live Follow-Up Board",
-    body: "See who still needs outreach, what is assigned, and where the campaign needs immediate response.",
-    cta: "Open Board",
-    route: ROUTES.LIVE_CONTACTS,
-  },
-  {
-    title: "Event Requests",
-    body: "Track event asks, scheduling needs, and campaign logistics through the structured intake workflow.",
-    cta: "Open Event Requests",
-    route: ROUTES.EVENT_REQUEST,
-  },
-  {
-    title: "Team Signup",
-    body: "Keep the volunteer front door active for people who want to raise a hand and join the mission.",
-    cta: "Open Signup",
-    route: ROUTES.TEAM_SIGNUP,
-  },
-];
 
 export default function LandingPage() {
   const nav = useNavigate();
@@ -51,73 +10,88 @@ export default function LandingPage() {
     <Container>
       <div className="space-y-6">
         <Card className="overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-sky-600 px-6 py-8 text-white">
-            <div className="max-w-3xl space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-100">
-                Kelly Grappe Campaign Operations Portal
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Build the people machine first.
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-indigo-50 sm:text-base">
-                This portal is now centered on contact acquisition, enrichment, assignment, and
-                follow-through so the campaign can start texting, emailing, and organizing from one
-                connected system.
-              </p>
-              <div className="flex flex-wrap gap-3 pt-2">
-                <Button onClick={() => nav(ROUTES.CONTACT_IMPORT)}>Start Importing Contacts</Button>
-                <Button variant="secondary" onClick={() => nav(ROUTES.CONTACTS)}>
-                  Open Command Center
-                </Button>
-              </div>
-            </div>
+          <div className="bg-gradient-to-r from-indigo-700 via-slate-900 to-indigo-900 px-5 py-6 text-white">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Campaign Operations Portal
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-indigo-100">
+              Intake, contact intelligence, voter targeting, and assignment workflows for a
+              statewide field operation.
+            </p>
           </div>
-        </Card>
+          <CardContent className="space-y-6 pt-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Button onClick={() => nav("/contact-import")}>
+                Import Contacts
+              </Button>
+              <Button variant="secondary" onClick={() => nav("/contacts")}>
+                Contact Intelligence
+              </Button>
+              <Button variant="secondary" onClick={() => nav("/voter-import")}>
+                Voter File Lab
+              </Button>
+              <Button variant="secondary" onClick={() => nav("/live-contacts")}>
+                Follow-Up Board
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {actions.map((item) => (
-            <Card key={item.title} className="h-full">
-              <CardHeader title={item.title} subtitle={item.body} />
-              <CardContent>
-                <Button
-                  variant={item.primary ? "primary" : "secondary"}
-                  onClick={() => nav(item.route)}
-                >
-                  {item.cta}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <Card className="bg-slate-50">
+                <CardHeader
+                  title="Acquire"
+                  subtitle="Pull in signups, voter IDs, petition lists, and supporter spreadsheets fast."
+                />
+                <CardContent>
+                  <p className="text-sm leading-relaxed text-slate-700">
+                    Import people even when names are incomplete. Create follow-ups immediately so
+                    field teams can close the loop.
+                  </p>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader
-            title="Built for the next phase"
-            subtitle="Contact profiles now become the home base for assignments, field teams, role tags, notes, and AI-assisted contact selection."
-          />
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <div className="text-sm font-semibold text-slate-900">Capture</div>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  Import lists, scan cards, and add field contacts without losing people just because
-                  their name was unreadable.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <div className="text-sm font-semibold text-slate-900">Enrich</div>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  Open a profile to add hashtags, geography, skills, notes, assignments, support
-                  level, and future campaign intelligence.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <div className="text-sm font-semibold text-slate-900">Activate</div>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  Use the AI Mission Finder to surface the right people for field events, volunteer
-                  roles, and outreach pushes.
-                </p>
-              </div>
+              <Card className="bg-slate-50">
+                <CardHeader
+                  title="Enrich"
+                  subtitle="Build living profiles with tags, notes, roles, districts, and turnout intelligence."
+                />
+                <CardContent>
+                  <p className="text-sm leading-relaxed text-slate-700">
+                    Layer campaign notes, local survey data, initiative histories, and future API
+                    enrichment into one contact record.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-50">
+                <CardHeader
+                  title="Deploy"
+                  subtitle="Use AI to sort who should volunteer, persuade, lead, or follow up next."
+                />
+                <CardContent>
+                  <p className="text-sm leading-relaxed text-slate-700">
+                    This is the command layer for assignments, event teams, precinct captains, and
+                    outreach targeting.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm leading-relaxed text-indigo-950">
+              <strong>Next phase wired in this overlay:</strong> statewide voter file staging,
+              turnout and persuasion scoring, ballot initiative history hooks, precinct demographic
+              planning, and government leadership enrichment scaffolding.
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Button variant="ghost" onClick={() => nav("/event-request")}>
+                Submit Event Request
+              </Button>
+              <Button variant="ghost" onClick={() => nav("/live-contact")}>
+                Live Contact Entry
+              </Button>
+              <Button variant="ghost" onClick={() => nav("/team-signup")}>
+                Join a People Powered Team
+              </Button>
             </div>
           </CardContent>
         </Card>

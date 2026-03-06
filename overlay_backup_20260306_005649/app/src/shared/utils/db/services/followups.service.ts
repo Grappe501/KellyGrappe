@@ -203,17 +203,13 @@ export async function listLiveFollowUpsForContact(contactId: string): Promise<Li
 
     await txDone(tx);
 
-    return (rows ?? []).sort((a, b) =>
-      (b.createdAt || "").localeCompare(a.createdAt || "")
-    );
+    return (rows ?? []).sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
 
   } catch (e: any) {
 
     await txDone(tx).catch(() => {});
 
-    throw new Error(
-      e?.message ?? "Failed to list follow-ups for contact."
-    );
+    throw new Error(e?.message ?? "Failed to list follow-ups for contact.");
 
   }
 

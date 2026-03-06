@@ -30,7 +30,12 @@ type FieldKey =
   | "city"
   | "county"
   | "state"
-  | "zip";
+  | "zip"
+  | "precinct"
+  | "congressionalDistrict"
+  | "stateHouseDistrict"
+  | "stateSenateDistrict"
+  | "voterFileId";
 
 type FieldMapping = Partial<Record<FieldKey, number | null>>;
 
@@ -42,6 +47,11 @@ type ImportRowNormalized = {
   county?: string;
   state?: string;
   zip?: string;
+  precinct?: string;
+  congressionalDistrict?: string;
+  stateHouseDistrict?: string;
+  stateSenateDistrict?: string;
+  voterFileId?: string;
 };
 
 type ImportStats = {
@@ -71,6 +81,7 @@ function defaultDisplayName(input: {
   fullName?: string;
   email?: string;
   phone?: string;
+  voterFileId?: string;
 }) {
   const explicit = safeTrim(input.fullName);
   if (explicit) return explicit;
@@ -88,9 +99,10 @@ function defaultDisplayName(input: {
   }
 
   const phone = normalizePhone(input.phone);
-  if (phone) {
-    return `Unknown Contact (${phone.slice(-4)})`;
-  }
+  if (phone) return `Unknown Contact (${phone.slice(-4)})`;
+
+  const voterFileId = safeTrim(input.voterFileId);
+  if (voterFileId) return `Unknown Contact (${voterFileId})`;
 
   return "Unknown Contact";
 }
@@ -99,7 +111,6 @@ function hasReachableKey(row: ImportRowNormalized) {
   return !!(safeTrim(row.email) || safeTrim(row.phone));
 }
 
-// CSV parser that handles quoted values (commas/newlines inside quotes).
 function parseCsv(text: string): CsvParseResult {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -152,13 +163,11 @@ function parseCsv(text: string): CsvParseResult {
 
   const header = (rows[0] ?? []).map((h) => safeTrim(h));
   const dataRows = rows.slice(1).map((r) => r.map((c) => safeTrim(c)));
-
   return { header, rows: dataRows };
 }
 
 function guessColumnIndex(header: string[], keys: string[]) {
   const lowered = header.map((h) => h.toLowerCase());
-
   for (const k of keys) {
     const idx = lowered.findIndex((h) => h === k || h.includes(k));
     if (idx >= 0) return idx;
@@ -168,23 +177,21 @@ function guessColumnIndex(header: string[], keys: string[]) {
 
 function buildDefaultMapping(header: string[]): FieldMapping {
   return {
-    fullName:
-      guessColumnIndex(header, [
-        "full name",
-        "fullname",
-        "name",
-        "voter name",
-        "contact",
-        "first",
-        "last",
-      ]) ?? null,
+    fullName: guessColumnIndex(header, ["full name", "fullname", "name", "contact"]) ?? null,
     email: guessColumnIndex(header, ["email", "e-mail", "mail"]) ?? null,
-    phone:
-      guessColumnIndex(header, ["phone", "cell", "mobile", "sms", "text"]) ?? null,
+    phone: guessColumnIndex(header, ["phone", "cell", "mobile", "sms", "text"]) ?? null,
     city: guessColumnIndex(header, ["city", "town"]) ?? null,
     county: guessColumnIndex(header, ["county"]) ?? null,
     state: guessColumnIndex(header, ["state", "st"]) ?? null,
     zip: guessColumnIndex(header, ["zip", "zipcode", "postal"]) ?? null,
+    precinct: guessColumnIndex(header, ["precinct"]) ?? null,
+    congressionalDistrict:
+      guessColumnIndex(header, ["congressionaldistrict", "congressional district", "cd"]) ?? null,
+    stateHouseDistrict:
+      guessColumnIndex(header, ["statehousedistrict", "state house district", "house district"]) ?? null,
+    stateSenateDistrict:
+      guessColumnIndex(header, ["statesenatedistrict", "state senate district", "senate district"]) ?? null,
+    voterFileId: guessColumnIndex(header, ["voterid", "voter id", "voterfileid", "file voter id"]) ?? null,
   };
 }
 
@@ -195,27 +202,27 @@ function mapRow(row: string[], mapping: FieldMapping): ImportRowNormalized {
     return safeTrim(row[idx] ?? "");
   }
 
-  const fullName = v("fullName");
-  const email = normalizeEmail(v("email"));
-  const phone = normalizePhone(v("phone"));
-
   return {
-    fullName: fullName || undefined,
-    email: email || undefined,
-    phone: phone || undefined,
+    fullName: v("fullName") || undefined,
+    email: normalizeEmail(v("email")) || undefined,
+    phone: normalizePhone(v("phone")) || undefined,
     city: v("city") || undefined,
     county: v("county") || undefined,
     state: v("state") || undefined,
     zip: v("zip") || undefined,
+    precinct: v("precinct") || undefined,
+    congressionalDistrict: v("congressionalDistrict") || undefined,
+    stateHouseDistrict: v("stateHouseDistrict") || undefined,
+    stateSenateDistrict: v("stateSenateDistrict") || undefined,
+    voterFileId: v("voterFileId") || undefined,
   };
 }
 
 function splitTags(raw: string) {
   const parts = raw
-    .split(/[,\n]/g)
+    .split(/[\n,]/g)
     .map((s) => safeTrim(s))
     .filter(Boolean);
-
   const seen = new Set<string>();
   const out: string[] = [];
   for (const p of parts) {
@@ -304,6 +311,7 @@ export default function ContactImportPage() {
         localFollowUpsCreated: number;
         serverUpserted?: number;
         serverMissingKey?: number;
+        serverError?: string;
       }
   >(null);
 
@@ -314,173 +322,141 @@ export default function ContactImportPage() {
 
     const ext = file.name.toLowerCase().split(".").pop();
     if (ext !== "csv") {
-      setError(
-        "For now, please export as CSV and upload that file. (XLSX support is next.)"
-      );
+      setError("For now, please export as CSV and upload that file.");
       return;
     }
 
-    const text = await file.text();
-    const parsed = parseCsv(text);
-    if (!parsed.header.length || !parsed.rows.length) {
-      setError("No rows detected. Please confirm the file has a header row and data.");
-      return;
+    try {
+      const text = await file.text();
+      const parsed = parseCsv(text);
+
+      if (!parsed.header.length || !parsed.rows.length) {
+        setError("No contacts detected in file.");
+        return;
+      }
+
+      setFileName(file.name);
+      setParseResult(parsed);
+      setMapping(buildDefaultMapping(parsed.header));
+    } catch (err: any) {
+      setError(err?.message ?? "Unable to parse file.");
     }
-
-    setParseResult(parsed);
-    setMapping(buildDefaultMapping(parsed.header));
-    setFileName(file.name);
-  }
-
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    handleFile(file).catch((err: any) => {
-      setError(err?.message ?? "Unable to read file.");
-    });
   }
 
   const normalizedRows = useMemo(() => {
-    if (!parseResult) return [] as ImportRowNormalized[];
-    return parseResult.rows.map((r) => mapRow(r, mapping));
-  }, [parseResult, mapping]);
+    if (!parseResult) return [];
+    return parseResult.rows.map((row) => {
+      const mapped = mapRow(row, mapping);
+      return {
+        ...mapped,
+        state: safeTrim(mapped.state) || defaultState,
+      };
+    });
+  }, [defaultState, mapping, parseResult]);
 
   const stats = useMemo(() => computeStats(normalizedRows), [normalizedRows]);
-
   const previewRows = useMemo(() => normalizedRows.slice(0, 25), [normalizedRows]);
 
-  function setMap(key: FieldKey, idxStr: string) {
-    const idx = idxStr === "" ? null : Number(idxStr);
-    setMapping((prev) => ({ ...prev, [key]: Number.isFinite(idx) ? idx : null }));
-  }
-
-  async function importNow() {
-    if (!parseResult) return;
-
+  async function importContacts() {
     setBusy(true);
     setError(null);
     setResult(null);
-    setProgress({ done: 0, total: normalizedRows.length });
 
     const tags = splitTags(tagsRaw);
-    const permVal =
-      permissionToContact === "yes"
-        ? true
-        : permissionToContact === "no"
-        ? false
-        : null;
+    const importable = normalizedRows.filter((row) => hasReachableKey(row));
 
     let localUpserted = 0;
     let localOriginWrites = 0;
     let localFollowUpsCreated = 0;
 
-    const seenKeys = new Set<string>();
-    const serverPayloadContacts: Array<Record<string, unknown>> = [];
-
     try {
-      for (let i = 0; i < normalizedRows.length; i++) {
-        const r = normalizedRows[i];
+      for (let i = 0; i < importable.length; i++) {
+        const row = importable[i]!;
+        setProgress({ done: i + 1, total: importable.length });
 
-        const email = safeTrim(r.email).toLowerCase();
-        const phone = safeTrim(r.phone);
-        const dedupeKey = email ? `e:${email}` : phone ? `p:${phone}` : "";
-
-        if (!dedupeKey || seenKeys.has(dedupeKey)) {
-          setProgress({ done: i + 1, total: normalizedRows.length });
-          continue;
-        }
-        seenKeys.add(dedupeKey);
-
-        const fullName = defaultDisplayName(r);
-        const state = safeTrim(r.state) || safeTrim(defaultState) || "AR";
-        const location = [safeTrim(r.city), safeTrim(r.county), state]
-          .filter(Boolean)
-          .join(", ");
-
-        const saved = await upsertContact({
-          fullName,
-          email: email || undefined,
-          phone: phone || undefined,
-          city: r.city,
-          county: r.county,
-          state,
-          zip: r.zip,
+        const contact = await upsertContact({
+          fullName: defaultDisplayName(row),
+          email: row.email,
+          phone: row.phone,
+          city: row.city,
+          county: row.county,
+          state: row.state || defaultState,
+          zip: row.zip,
+          precinct: row.precinct,
+          congressionalDistrict: row.congressionalDistrict,
+          stateHouseDistrict: row.stateHouseDistrict,
+          stateSenateDistrict: row.stateSenateDistrict,
+          voterFileId: row.voterFileId,
           tags,
           createdFrom: "IMPORT",
-          bestContactMethod: phone ? "TEXT" : email ? "EMAIL" : undefined,
-          conversationNotes: !safeTrim(r.fullName)
-            ? "Imported without readable name. Follow up to confirm full name."
-            : undefined,
         });
-
         localUpserted++;
 
         await addOrigin({
-          contactId: saved.id,
+          contactId: contact.id,
           originType: "CONTACT_IMPORT",
-          rawPayload: { ...r, fileName },
+          capturedAt: new Date().toISOString(),
+          rawPayload: row,
         });
         localOriginWrites++;
 
         if (autoCreateFollowUps) {
           await addLiveFollowUp({
-            contactId: saved.id,
+            contactId: contact.id,
             followUpStatus: "NEW",
             archived: false,
             followUpNotes: followUpNotes,
             notes: followUpNotes,
-            name: saved.fullName,
-            phone: saved.phone,
-            email: saved.email,
-            location,
+            name: contact.fullName,
+            phone: contact.phone,
+            email: contact.email,
+            location: [contact.city, contact.county, contact.state].filter(Boolean).join(", "),
             source: "CONTACT_IMPORT",
-            permissionToContact: permVal ?? undefined,
             entryInitials: followUpInitials,
+            permissionToContact: permissionToContact === "yes",
           });
           localFollowUpsCreated++;
         }
-
-        serverPayloadContacts.push({
-          fullName,
-          email: email || undefined,
-          phone: phone || undefined,
-          city: r.city,
-          county: r.county,
-          state,
-          zip: r.zip,
-          tags,
-          permissionToContact: permVal,
-        });
-
-        setProgress({ done: i + 1, total: normalizedRows.length });
       }
 
       let serverUpserted: number | undefined;
       let serverMissingKey: number | undefined;
-      const online = typeof navigator !== "undefined" ? navigator.onLine !== false : true;
+      let serverError: string | undefined;
 
-      if (online && serverPayloadContacts.length) {
-        const CHUNK = 250;
-        let serverTotalUpserted = 0;
-        let serverTotalMissingKey = 0;
-
-        for (let i = 0; i < serverPayloadContacts.length; i += CHUNK) {
-          const chunk = serverPayloadContacts.slice(i, i + CHUNK);
-          const json = await postBulkUpsert({
-            batch: {
-              sourceType: "CONTACT_IMPORT",
-              fileName,
-              tag: tagsRaw,
-            },
-            contacts: chunk,
-          });
-
-          serverTotalUpserted += Number(json?.upserted ?? 0);
-          serverTotalMissingKey += Number(json?.missingKey ?? 0);
-        }
-
-        serverUpserted = serverTotalUpserted;
-        serverMissingKey = serverTotalMissingKey;
+      try {
+        const server = await postBulkUpsert({
+          batch: {
+            sourceType: "CONTACT_IMPORT",
+            fileName,
+            tags,
+            defaultState,
+          },
+          contacts: importable.map((row) => ({
+            full_name: defaultDisplayName(row),
+            email: row.email,
+            phone: row.phone,
+            city: row.city,
+            county: row.county,
+            state: row.state || defaultState,
+            zip: row.zip,
+            precinct: row.precinct,
+            congressional_district: row.congressionalDistrict,
+            state_house_district: row.stateHouseDistrict,
+            state_senate_district: row.stateSenateDistrict,
+            voter_file_id: row.voterFileId,
+            permission_to_contact:
+              permissionToContact === "yes"
+                ? true
+                : permissionToContact === "no"
+                ? false
+                : undefined,
+            tags,
+          })),
+        });
+        serverUpserted = server.upserted;
+        serverMissingKey = server.missingKey;
+      } catch (serverErr: any) {
+        serverError = serverErr?.message ?? "Server sync skipped.";
       }
 
       setResult({
@@ -489,6 +465,7 @@ export default function ContactImportPage() {
         localFollowUpsCreated,
         serverUpserted,
         serverMissingKey,
+        serverError,
       });
     } catch (err: any) {
       setError(err?.message ?? "Import failed.");
@@ -498,257 +475,199 @@ export default function ContactImportPage() {
     }
   }
 
-  const header = parseResult?.header ?? [];
-
   return (
     <Container>
-      <Card>
-        <CardHeader
-          title="Contact Import Center"
-          subtitle="Upload a CSV, map columns, validate, and import into the campaign CRM."
-        />
-
-        <CardContent className="space-y-8">
-          <section className="space-y-3">
-            <Label>Upload CSV</Label>
-            <Input type="file" accept=".csv" onChange={onFileChange} />
-            <HelpText>
-              We now import any row that has a reachable contact method: email or phone. Missing
-              names can be repaired later from the profile screen.
-            </HelpText>
-          </section>
-
-          {parseResult ? (
-            <section className="space-y-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">{fileName}</div>
-                  <HelpText>
-                    {stats.total} rows detected • {stats.ready} ready • {stats.skipped} skipped •{" "}
-                    {stats.missingKey} missing email/phone • {stats.missingName} missing name
-                    {stats.duplicatesInFile
-                      ? ` • ${stats.duplicatesInFile} duplicates in file`
-                      : ""}
-                  </HelpText>
-                </div>
-
-                <Button onClick={importNow} disabled={busy || stats.ready === 0}>
-                  {busy ? "Importing…" : "Import Contacts"}
-                </Button>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader
+            title="Contact Import Center"
+            subtitle="Pull signups into the CRM now, even when the name field is unreadable or missing."
+          />
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+              <div className="space-y-3">
+                <Label>Upload CSV</Label>
+                <Input type="file" accept=".csv" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+                <HelpText>
+                  Rule in this build: a row can import with an email or a phone number. Missing names
+                  get a placeholder so your team can enrich the profile later.
+                </HelpText>
               </div>
 
-              {progress ? (
-                <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                  <div className="text-xs text-slate-600">
-                    Import progress: {progress.done} / {progress.total}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">Import readiness</p>
+                <p className="mt-2 leading-relaxed">
+                  Best for campaign signups, volunteer sheets, event lead lists, petitions, and files
+                  with voter IDs or district metadata.
+                </p>
+              </div>
+            </div>
+
+            {parseResult ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {([
+                  ["Rows detected", stats.total],
+                  ["Ready to import", stats.ready],
+                  ["Missing name", stats.missingName],
+                  ["Missing email/phone", stats.missingKey],
+                ] as const).map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
                   </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-200">
-                    <div
-                      className="h-2 bg-indigo-600"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round((progress.done / Math.max(1, progress.total)) * 100)
-                        )}%`,
-                      }}
-                    />
+                ))}
+              </div>
+            ) : null}
+
+            {parseResult ? (
+              <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h2 className="text-lg font-semibold text-slate-900">Column mapping</h2>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      {(
+                        [
+                          ["fullName", "Full name"],
+                          ["email", "Email"],
+                          ["phone", "Phone"],
+                          ["city", "City"],
+                          ["county", "County"],
+                          ["state", "State"],
+                          ["zip", "ZIP"],
+                          ["precinct", "Precinct"],
+                          ["congressionalDistrict", "Congressional district"],
+                          ["stateHouseDistrict", "State House district"],
+                          ["stateSenateDistrict", "State Senate district"],
+                          ["voterFileId", "Voter file ID"],
+                        ] as Array<[FieldKey, string]>
+                      ).map(([key, label]) => (
+                        <div key={key}>
+                          <Label>{label}</Label>
+                          <Select
+                            value={mapping[key] === null || mapping[key] === undefined ? "" : String(mapping[key])}
+                            onChange={(e) =>
+                              setMapping((prev) => ({
+                                ...prev,
+                                [key]: e.target.value === "" ? null : Number(e.target.value),
+                              }))
+                            }
+                          >
+                            <option value="">Not mapped</option>
+                            {parseResult.header.map((h, idx) => (
+                              <option key={`${key}-${idx}`} value={idx}>
+                                {h}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : null}
 
-              {error ? <ErrorText>{error}</ErrorText> : null}
-
-              {result ? (
-                <div className="rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
-                  <div className="text-sm font-semibold text-emerald-900">Import complete</div>
-                  <div className="mt-1 text-xs text-emerald-900/80">
-                    Saved locally: {result.localUpserted} contacts • Origin records: {result.localOriginWrites}
-                    {result.localFollowUpsCreated ? (
-                      <> • Live follow-ups created: {result.localFollowUpsCreated}</>
-                    ) : null}
-                    {typeof result.serverUpserted === "number" ? (
-                      <> • Server upserted: {result.serverUpserted}</>
-                    ) : (
-                      <> • Server sync: skipped (offline or not configured)</>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="text-sm font-semibold text-slate-900">1) Map columns</div>
-                  <HelpText>
-                    Pick which CSV column feeds each contact field. We auto-guessed, but you can
-                    override anything before import.
-                  </HelpText>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        ["fullName", "Full Name"],
-                        ["email", "Email"],
-                        ["phone", "Phone"],
-                        ["city", "City"],
-                        ["county", "County"],
-                        ["state", "State"],
-                        ["zip", "ZIP"],
-                      ] as Array<[FieldKey, string]>
-                    ).map(([field, label]) => (
-                      <div key={field}>
-                        <Label>{label}</Label>
-                        <Select
-                          value={mapping[field] ?? ""}
-                          onChange={(e) => setMap(field, e.target.value)}
-                        >
-                          <option value="">— Not mapped —</option>
-                          {header.map((h, i) => (
-                            <option key={i} value={i}>
-                              {h || `Column ${i + 1}`}
-                            </option>
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h2 className="text-lg font-semibold text-slate-900">Preview</h2>
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-700">
+                          <tr>
+                            <th className="p-2 text-left">Name</th>
+                            <th className="p-2 text-left">Email</th>
+                            <th className="p-2 text-left">Phone</th>
+                            <th className="p-2 text-left">Location</th>
+                            <th className="p-2 text-left">Districts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewRows.map((row, idx) => (
+                            <tr key={idx} className="border-t border-slate-200">
+                              <td className="p-2">{defaultDisplayName(row)}</td>
+                              <td className="p-2">{row.email || "—"}</td>
+                              <td className="p-2">{row.phone || "—"}</td>
+                              <td className="p-2">{[row.city, row.county, row.state].filter(Boolean).join(", ") || "—"}</td>
+                              <td className="p-2 text-xs text-slate-600">
+                                {[row.precinct && `P ${row.precinct}`, row.congressionalDistrict && `CD ${row.congressionalDistrict}`, row.stateHouseDistrict && `HD ${row.stateHouseDistrict}`, row.stateSenateDistrict && `SD ${row.stateSenateDistrict}`]
+                                  .filter(Boolean)
+                                  .join(" • ") || "—"}
+                              </td>
+                            </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h2 className="text-lg font-semibold text-slate-900">Import settings</h2>
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <Label>Default state</Label>
+                        <Input value={defaultState} onChange={(e) => setDefaultState(e.target.value.toUpperCase())} />
+                      </div>
+                      <div>
+                        <Label>Tags / hashtags</Label>
+                        <Textarea value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label>Permission to contact</Label>
+                        <Select value={permissionToContact} onChange={(e) => setPermissionToContact(e.target.value as any)}>
+                          <option value="unknown">Unknown / ask later</option>
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
                         </Select>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="text-sm font-semibold text-slate-900">2) Import settings</div>
-
-                  <div>
-                    <Label>Default State (if missing)</Label>
-                    <Input value={defaultState} onChange={(e) => setDefaultState(e.target.value)} />
-                  </div>
-
-                  <div>
-                    <Label>Tags (comma or newline separated)</Label>
-                    <Textarea value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />
-                    <HelpText>
-                      These tags get added to every imported contact. Example: “Volunteer Signup,
-                      March 2026”.
-                    </HelpText>
-                  </div>
-
-                  <div>
-                    <Label>Permission to contact</Label>
-                    <Select
-                      value={permissionToContact}
-                      onChange={(e) => setPermissionToContact(e.target.value as "unknown" | "yes" | "no")}
-                    >
-                      <option value="unknown">Unknown</option>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </Select>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+                        <input
+                          className="mt-1"
+                          type="checkbox"
+                          checked={autoCreateFollowUps}
+                          onChange={(e) => setAutoCreateFollowUps(e.target.checked)}
+                        />
+                        <span>
+                          Create NEW follow-up tasks automatically so imported contacts can flow into
+                          the assignment board right away.
+                        </span>
+                      </label>
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">Create live follow-up tasks</div>
-                        <HelpText className="mt-1">
-                          Turn imported contacts into actionable board items for outreach.
+                        <Label>Follow-up initials</Label>
+                        <Input value={followUpInitials} onChange={(e) => setFollowUpInitials(e.target.value.toUpperCase())} />
+                      </div>
+                      <div>
+                        <Label>Default follow-up notes</Label>
+                        <Textarea value={followUpNotes} onChange={(e) => setFollowUpNotes(e.target.value)} />
+                      </div>
+                      <Button disabled={busy || !stats.ready} onClick={importContacts}>
+                        {busy ? "Importing…" : `Import ${stats.ready} contacts`}
+                      </Button>
+                      {progress ? (
+                        <HelpText>
+                          Processing {progress.done} of {progress.total}…
                         </HelpText>
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-slate-300"
-                        checked={autoCreateFollowUps}
-                        onChange={(e) => setAutoCreateFollowUps(e.target.checked)}
-                      />
+                      ) : null}
                     </div>
-
-                    {autoCreateFollowUps ? (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <Label>Entry initials</Label>
-                          <Input
-                            value={followUpInitials}
-                            maxLength={3}
-                            onChange={(e) => setFollowUpInitials(e.target.value)}
-                          />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <Label>Default follow-up note</Label>
-                          <Textarea
-                            value={followUpNotes}
-                            onChange={(e) => setFollowUpNotes(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
+
+                  {result ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                      <p className="font-semibold">Import complete</p>
+                      <ul className="mt-2 space-y-1">
+                        <li>Local contacts saved: {result.localUpserted}</li>
+                        <li>Origin records written: {result.localOriginWrites}</li>
+                        <li>Follow-ups created: {result.localFollowUpsCreated}</li>
+                        <li>Server upserts: {result.serverUpserted ?? 0}</li>
+                        {result.serverError ? <li>Server sync note: {result.serverError}</li> : null}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
               </div>
+            ) : null}
 
-              <div className="space-y-3">
-                <div className="text-sm font-semibold text-slate-900">3) Preview (first 25 rows)</div>
-                <div className="overflow-x-auto rounded-xl border">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-slate-100">
-                      <tr>
-                        <th className="p-2 text-left">Display Name</th>
-                        <th className="p-2 text-left">Email</th>
-                        <th className="p-2 text-left">Phone</th>
-                        <th className="p-2 text-left">City</th>
-                        <th className="p-2 text-left">County</th>
-                        <th className="p-2 text-left">State</th>
-                        <th className="p-2 text-left">ZIP</th>
-                        <th className="p-2 text-left">Ready</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewRows.map((r, i) => {
-                        const ready = hasReachableKey(r);
-                        return (
-                          <tr key={i} className="border-t">
-                            <td className="p-2">{defaultDisplayName(r)}</td>
-                            <td className="p-2">{r.email}</td>
-                            <td className="p-2">{r.phone}</td>
-                            <td className="p-2">{r.city}</td>
-                            <td className="p-2">{r.county}</td>
-                            <td className="p-2">{r.state || defaultState}</td>
-                            <td className="p-2">{r.zip}</td>
-                            <td className="p-2">
-                              <span
-                                className={[
-                                  "rounded-full px-2 py-1 text-xs font-semibold",
-                                  ready
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-rose-100 text-rose-700",
-                                ].join(" ")}
-                              >
-                                {ready ? "Import" : "Skip"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-          ) : (
-            <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <div className="text-sm font-semibold text-slate-900">Ready when you are</div>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                Upload a CSV and we’ll walk you through mapping, validating, importing, and pushing
-                the contacts straight into actionable follow-up workflows.
-              </p>
-              {error ? <ErrorText>{error}</ErrorText> : null}
-            </div>
-          )}
-
-          <section className="space-y-3">
-            <div className="text-sm font-semibold text-slate-900">Next up</div>
-            <HelpText>
-              From here, jump into the Contacts Directory to enrich profiles, assign teams, and use
-              AI-assisted sorting by hashtags, location, skills, and organizing need.
-            </HelpText>
-          </section>
-        </CardContent>
-      </Card>
+            {error ? <ErrorText>{error}</ErrorText> : null}
+          </CardContent>
+        </Card>
+      </div>
     </Container>
   );
 }

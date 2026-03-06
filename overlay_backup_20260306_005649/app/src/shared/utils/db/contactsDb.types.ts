@@ -1,6 +1,15 @@
 /*
   contactsDb.types.ts
   Shared types for the campaign CRM IndexedDB layer.
+
+  IMPORTANT
+  ---------
+  Keep this file TYPE-ONLY (enums/types/constants).
+  Do not import services from here.
+
+  This exists to prevent circular imports:
+  - contactsDb.ts re-exports services
+  - services need these types
 */
 
 export type SyncStatus = "PENDING_SYNC" | "SYNCED" | "ERROR";
@@ -12,6 +21,10 @@ export type BaseRow = {
   followUpStatus?: string;
   followUpTargetAt?: string;
 };
+
+/* -------------------------------------------------------------------------- */
+/* CONTACT ENUMS                                                              */
+/* -------------------------------------------------------------------------- */
 
 export type SupportLevel =
   | "STRONG_SUPPORT"
@@ -33,14 +46,21 @@ export type ContactCategory =
 
 export type CampaignTeam = string;
 
+/* -------------------------------------------------------------------------- */
+/* CONTACT                                                                    */
+/* -------------------------------------------------------------------------- */
+
 export type Contact = BaseRow & {
   fullName: string;
+
   phone?: string;
   email?: string;
+
   city?: string;
   county?: string;
   state?: string;
   zip?: string;
+
   location?: string;
 
   interestedVolunteer?: boolean;
@@ -51,21 +71,14 @@ export type Contact = BaseRow & {
   stateHouseDistrict?: string;
   stateSenateDistrict?: string;
 
-  votingHistory2018?: boolean;
-  votingHistory2020?: boolean;
-  votingHistory2022?: boolean;
-  turnoutScore?: number;
-  persuasionScore?: number;
-
-  ballotInitiatives?: string[];
-  ballotInitiativeCount?: number;
-  voterFileId?: string;
-
   category?: ContactCategory;
   supportLevel?: SupportLevel;
   bestContactMethod?: BestContactMethod;
+
+  // intake lineage
   createdFrom?: "LIVE_FIELD" | "IMPORT" | "EVENT" | "BUSINESS_CARD" | "OTHER";
 
+  // Organizing metadata
   teamAssignments?: CampaignTeam[];
   rolePotential?: string[];
   tags?: string[];
@@ -77,11 +90,6 @@ export type Contact = BaseRow & {
   metWhereDetails?: string;
   topIssue?: string;
   conversationNotes?: string;
-
-  demographicScore?: number;
-  organizerScore?: number;
-  leaderSignals?: string[];
-  governmentLeaderRoles?: string[];
 };
 
 export type ContactDirectoryRow = Pick<
@@ -94,30 +102,22 @@ export type ContactDirectoryRow = Pick<
   | "county"
   | "state"
   | "zip"
-  | "precinct"
-  | "congressionalDistrict"
-  | "stateHouseDistrict"
-  | "stateSenateDistrict"
-  | "turnoutScore"
-  | "persuasionScore"
   | "tags"
   | "category"
   | "supportLevel"
-  | "organization"
-  | "rolePotential"
-  | "teamAssignments"
-  | "ballotInitiativeCount"
 > & {
   updatedAt?: string;
 };
+
+/* -------------------------------------------------------------------------- */
+/* ORIGINS                                                                    */
+/* -------------------------------------------------------------------------- */
 
 export type OriginType =
   | "LIVE_FIELD"
   | "CONTACT_IMPORT"
   | "EVENT_REQUEST"
   | "BUSINESS_CARD_SCAN"
-  | "VOTER_IMPORT"
-  | "BALLOT_INITIATIVE_IMPORT"
   | "OTHER";
 
 export type ContactOrigin = BaseRow & {
@@ -127,20 +127,31 @@ export type ContactOrigin = BaseRow & {
   rawPayload?: unknown;
 };
 
+/* -------------------------------------------------------------------------- */
+/* FOLLOWUPS                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export type FollowUpStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
 export type LiveFollowUp = BaseRow & {
   contactId: string;
+
   followUpStatus: FollowUpStatus;
   archived?: boolean;
+
+  // sync
   syncStatus?: SyncStatus;
   serverId?: string;
   createdOffline?: boolean;
   lastSyncAttemptAt?: string;
   lastSyncError?: string | null;
+
+  // notes
   followUpNotes?: string;
   notes?: string;
   followUpCompletedAt?: string;
+
+  // convenience snapshot fields
   name?: string;
   phone?: string;
   email?: string;
@@ -150,20 +161,30 @@ export type LiveFollowUp = BaseRow & {
   entryInitials?: string;
 };
 
+/* -------------------------------------------------------------------------- */
+/* MEDIA                                                                      */
+/* -------------------------------------------------------------------------- */
+
 export type ContactMedia = BaseRow & {
   contactId: string;
   type: "PROFILE_PHOTO" | "BUSINESS_CARD" | "CONTEXT_PHOTO" | string;
+
   dataUrl?: string;
   fileName?: string;
   fileUrl?: string;
   mimeType?: string;
   sizeBytes?: number;
+
   serverId?: string;
   createdOffline?: boolean;
   syncStatus?: SyncStatus;
   lastSyncAttemptAt?: string;
   lastSyncError?: string | null;
 };
+
+/* -------------------------------------------------------------------------- */
+/* RELATIONSHIPS                                                              */
+/* -------------------------------------------------------------------------- */
 
 export type ContactRelationshipType = string;
 
@@ -173,6 +194,10 @@ export type ContactRelationship = BaseRow & {
   relationshipType: ContactRelationshipType;
 };
 
+/* -------------------------------------------------------------------------- */
+/* VOTER MATCHING                                                             */
+/* -------------------------------------------------------------------------- */
+
 export type VoterMatchStatus =
   | "MATCHED"
   | "CLAIMED"
@@ -181,9 +206,12 @@ export type VoterMatchStatus =
 
 export type VoterMatchRow = BaseRow & {
   contactId: string;
+
   voterFileId?: string;
   claimedByContactId?: string;
+
   matchConfidence?: number;
+
   needsRegistration?: boolean;
   status?: VoterMatchStatus;
 };
