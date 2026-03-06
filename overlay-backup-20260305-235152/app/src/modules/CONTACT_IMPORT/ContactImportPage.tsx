@@ -12,11 +12,7 @@ import {
   Textarea,
 } from "../../shared/components/FormControls";
 
-import {
-  addLiveFollowUp,
-  addOrigin,
-  upsertContact,
-} from "../../shared/utils/db/contactsDb";
+import { addOrigin, upsertContact } from "../../shared/utils/db/contactsDb";
 
 type CsvParseResult = {
   header: string[];
@@ -44,15 +40,6 @@ type ImportRowNormalized = {
   zip?: string;
 };
 
-type ImportStats = {
-  total: number;
-  missingName: number;
-  missingKey: number;
-  duplicatesInFile: number;
-  ready: number;
-  skipped: number;
-};
-
 function safeTrim(v: unknown) {
   return String(v ?? "").trim();
 }
@@ -67,38 +54,6 @@ function normalizePhone(v: unknown) {
   return s || "";
 }
 
-function defaultDisplayName(input: {
-  fullName?: string;
-  email?: string;
-  phone?: string;
-}) {
-  const explicit = safeTrim(input.fullName);
-  if (explicit) return explicit;
-
-  const email = normalizeEmail(input.email);
-  if (email) {
-    const local = email.split("@")[0]?.replace(/[._-]+/g, " ").trim();
-    if (local) {
-      return local
-        .split(/\s+/)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
-    }
-    return `Unknown Contact (${email})`;
-  }
-
-  const phone = normalizePhone(input.phone);
-  if (phone) {
-    return `Unknown Contact (${phone.slice(-4)})`;
-  }
-
-  return "Unknown Contact";
-}
-
-function hasReachableKey(row: ImportRowNormalized) {
-  return !!(safeTrim(row.email) || safeTrim(row.phone));
-}
-
 // CSV parser that handles quoted values (commas/newlines inside quotes).
 function parseCsv(text: string): CsvParseResult {
   const rows: string[][] = [];
@@ -111,6 +66,7 @@ function parseCsv(text: string): CsvParseResult {
     cell = "";
   }
   function pushRow() {
+    // ignore pure-empty trailing row
     if (row.length === 1 && safeTrim(row[0]) === "") {
       row = [];
       return;
@@ -123,6 +79,7 @@ function parseCsv(text: string): CsvParseResult {
     const ch = text[i];
 
     if (ch === '"') {
+      // escaped quote
       if (inQuotes && text[i + 1] === '"') {
         cell += '"';
         i++;
@@ -138,6 +95,7 @@ function parseCsv(text: string): CsvParseResult {
     }
 
     if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      // handle CRLF
       if (ch === "\r" && text[i + 1] === "\n") i++;
       pushCell();
       pushRow();
@@ -147,6 +105,7 @@ function parseCsv(text: string): CsvParseResult {
     cell += ch;
   }
 
+  // flush last cell/row
   pushCell();
   pushRow();
 
@@ -168,19 +127,9 @@ function guessColumnIndex(header: string[], keys: string[]) {
 
 function buildDefaultMapping(header: string[]): FieldMapping {
   return {
-    fullName:
-      guessColumnIndex(header, [
-        "full name",
-        "fullname",
-        "name",
-        "voter name",
-        "contact",
-        "first",
-        "last",
-      ]) ?? null,
+    fullName: guessColumnIndex(header, ["full name", "fullname", "name", "voter name", "contact", "first", "last"]) ?? null,
     email: guessColumnIndex(header, ["email", "e-mail", "mail"]) ?? null,
-    phone:
-      guessColumnIndex(header, ["phone", "cell", "mobile", "sms", "text"]) ?? null,
+    phone: guessColumnIndex(header, ["phone", "cell", "mobile", "sms", "text"]) ?? null,
     city: guessColumnIndex(header, ["city", "town"]) ?? null,
     county: guessColumnIndex(header, ["county"]) ?? null,
     state: guessColumnIndex(header, ["state", "st"]) ?? null,
@@ -216,6 +165,7 @@ function splitTags(raw: string) {
     .map((s) => safeTrim(s))
     .filter(Boolean);
 
+  // de-dupe case-insensitive
   const seen = new Set<string>();
   const out: string[] = [];
   for (const p of parts) {
@@ -226,6 +176,14 @@ function splitTags(raw: string) {
   }
   return out;
 }
+
+type ImportStats = {
+  total: number;
+  missingName: number;
+  missingKey: number;
+  duplicatesInFile: number;
+  ready: number;
+};
 
 function computeStats(rows: ImportRowNormalized[]): ImportStats {
   let missingName = 0;
@@ -248,7 +206,7 @@ function computeStats(rows: ImportRowNormalized[]): ImportStats {
       else seenKey.add(key);
     }
 
-    if (key) ready++;
+    if (hasName && key) ready++;
   }
 
   return {
@@ -257,11 +215,10 @@ function computeStats(rows: ImportRowNormalized[]): ImportStats {
     missingKey,
     duplicatesInFile,
     ready,
-    skipped: rows.length - ready,
   };
 }
 
-async function postBulkUpsert(payload: unknown) {
+async function postBulkUpsert(payload: any) {
   const res = await fetch("/.netlify/functions/contacts-bulk-upsert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -270,11 +227,11 @@ async function postBulkUpsert(payload: unknown) {
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = (json as any)?.error || `Import API failed (${res.status}).`;
+    const msg = json?.error || `Import API failed (${res.status}).`;
     throw new Error(msg);
   }
 
-  return json as { upserted?: number; missingKey?: number };
+  return json;
 }
 
 export default function ContactImportPage() {
@@ -287,21 +244,17 @@ export default function ContactImportPage() {
   const [permissionToContact, setPermissionToContact] = useState<
     "unknown" | "yes" | "no"
   >("unknown");
-  const [autoCreateFollowUps, setAutoCreateFollowUps] = useState(true);
-  const [followUpInitials, setFollowUpInitials] = useState("SYS");
-  const [followUpNotes, setFollowUpNotes] = useState(
-    "Imported contact. Reach out, confirm name, and verify preferred contact method."
-  );
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
+    null
+  );
   const [result, setResult] = useState<
     | null
     | {
         localUpserted: number;
         localOriginWrites: number;
-        localFollowUpsCreated: number;
         serverUpserted?: number;
         serverMissingKey?: number;
       }
@@ -372,30 +325,24 @@ export default function ContactImportPage() {
 
     let localUpserted = 0;
     let localOriginWrites = 0;
-    let localFollowUpsCreated = 0;
 
-    const seenKeys = new Set<string>();
-    const serverPayloadContacts: Array<Record<string, unknown>> = [];
+    // For server sync
+    const serverPayloadContacts: any[] = [];
 
     try {
+      // 1) Local import (IndexedDB) — always
       for (let i = 0; i < normalizedRows.length; i++) {
         const r = normalizedRows[i];
 
-        const email = safeTrim(r.email).toLowerCase();
+        const fullName = safeTrim(r.fullName);
+        const email = safeTrim(r.email);
         const phone = safeTrim(r.phone);
-        const dedupeKey = email ? `e:${email}` : phone ? `p:${phone}` : "";
 
-        if (!dedupeKey || seenKeys.has(dedupeKey)) {
+        // Skip truly unusable rows
+        if (!fullName || (!email && !phone)) {
           setProgress({ done: i + 1, total: normalizedRows.length });
           continue;
         }
-        seenKeys.add(dedupeKey);
-
-        const fullName = defaultDisplayName(r);
-        const state = safeTrim(r.state) || safeTrim(defaultState) || "AR";
-        const location = [safeTrim(r.city), safeTrim(r.county), state]
-          .filter(Boolean)
-          .join(", ");
 
         const saved = await upsertContact({
           fullName,
@@ -403,18 +350,14 @@ export default function ContactImportPage() {
           phone: phone || undefined,
           city: r.city,
           county: r.county,
-          state,
+          state: safeTrim(r.state) || safeTrim(defaultState) || "AR",
           zip: r.zip,
           tags,
-          createdFrom: "IMPORT",
-          bestContactMethod: phone ? "TEXT" : email ? "EMAIL" : undefined,
-          conversationNotes: !safeTrim(r.fullName)
-            ? "Imported without readable name. Follow up to confirm full name."
-            : undefined,
         });
 
         localUpserted++;
 
+        // Origin record for auditability.
         await addOrigin({
           contactId: saved.id,
           originType: "CONTACT_IMPORT",
@@ -422,31 +365,14 @@ export default function ContactImportPage() {
         });
         localOriginWrites++;
 
-        if (autoCreateFollowUps) {
-          await addLiveFollowUp({
-            contactId: saved.id,
-            followUpStatus: "NEW",
-            archived: false,
-            followUpNotes: followUpNotes,
-            notes: followUpNotes,
-            name: saved.fullName,
-            phone: saved.phone,
-            email: saved.email,
-            location,
-            source: "CONTACT_IMPORT",
-            permissionToContact: permVal ?? undefined,
-            entryInitials: followUpInitials,
-          });
-          localFollowUpsCreated++;
-        }
-
+        // Prepare server payload
         serverPayloadContacts.push({
           fullName,
           email: email || undefined,
           phone: phone || undefined,
           city: r.city,
           county: r.county,
-          state,
+          state: safeTrim(r.state) || safeTrim(defaultState) || "AR",
           zip: r.zip,
           tags,
           permissionToContact: permVal,
@@ -455,11 +381,13 @@ export default function ContactImportPage() {
         setProgress({ done: i + 1, total: normalizedRows.length });
       }
 
+      // 2) Server import (Supabase) — best effort, only if online
       let serverUpserted: number | undefined;
       let serverMissingKey: number | undefined;
       const online = typeof navigator !== "undefined" ? navigator.onLine !== false : true;
 
       if (online && serverPayloadContacts.length) {
+        // chunk to avoid function payload limits
         const CHUNK = 250;
         let serverTotalUpserted = 0;
         let serverTotalMissingKey = 0;
@@ -486,7 +414,6 @@ export default function ContactImportPage() {
       setResult({
         localUpserted,
         localOriginWrites,
-        localFollowUpsCreated,
         serverUpserted,
         serverMissingKey,
       });
@@ -513,26 +440,26 @@ export default function ContactImportPage() {
             <Label>Upload CSV</Label>
             <Input type="file" accept=".csv" onChange={onFileChange} />
             <HelpText>
-              We now import any row that has a reachable contact method: email or phone. Missing
-              names can be repaired later from the profile screen.
+              Tip: If you have Excel/Google Sheets, export as CSV and upload the CSV.
             </HelpText>
           </section>
 
           {parseResult ? (
             <section className="space-y-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{fileName}</div>
                   <HelpText>
-                    {stats.total} rows detected • {stats.ready} ready • {stats.skipped} skipped •{" "}
-                    {stats.missingKey} missing email/phone • {stats.missingName} missing name
-                    {stats.duplicatesInFile
-                      ? ` • ${stats.duplicatesInFile} duplicates in file`
-                      : ""}
+                    {stats.total} rows detected • {stats.ready} ready • {stats.missingKey} missing
+                    email/phone • {stats.missingName} missing name
+                    {stats.duplicatesInFile ? ` • ${stats.duplicatesInFile} duplicates in file` : ""}
                   </HelpText>
                 </div>
 
-                <Button onClick={importNow} disabled={busy || stats.ready === 0}>
+                <Button
+                  onClick={importNow}
+                  disabled={busy || stats.ready === 0}
+                >
                   {busy ? "Importing…" : "Import Contacts"}
                 </Button>
               </div>
@@ -542,7 +469,7 @@ export default function ContactImportPage() {
                   <div className="text-xs text-slate-600">
                     Import progress: {progress.done} / {progress.total}
                   </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-200">
+                  <div className="mt-2 h-2 w-full rounded bg-slate-200 overflow-hidden">
                     <div
                       className="h-2 bg-indigo-600"
                       style={{
@@ -563,9 +490,6 @@ export default function ContactImportPage() {
                   <div className="text-sm font-semibold text-emerald-900">Import complete</div>
                   <div className="mt-1 text-xs text-emerald-900/80">
                     Saved locally: {result.localUpserted} contacts • Origin records: {result.localOriginWrites}
-                    {result.localFollowUpsCreated ? (
-                      <> • Live follow-ups created: {result.localFollowUpsCreated}</>
-                    ) : null}
                     {typeof result.serverUpserted === "number" ? (
                       <> • Server upserted: {result.serverUpserted}</>
                     ) : (
@@ -575,41 +499,118 @@ export default function ContactImportPage() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-slate-900">1) Map columns</div>
                   <HelpText>
-                    Pick which CSV column feeds each contact field. We auto-guessed, but you can
-                    override anything before import.
+                    Pick which CSV column feeds each contact field. (We auto-guessed — adjust if needed.)
                   </HelpText>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        ["fullName", "Full Name"],
-                        ["email", "Email"],
-                        ["phone", "Phone"],
-                        ["city", "City"],
-                        ["county", "County"],
-                        ["state", "State"],
-                        ["zip", "ZIP"],
-                      ] as Array<[FieldKey, string]>
-                    ).map(([field, label]) => (
-                      <div key={field}>
-                        <Label>{label}</Label>
-                        <Select
-                          value={mapping[field] ?? ""}
-                          onChange={(e) => setMap(field, e.target.value)}
-                        >
-                          <option value="">— Not mapped —</option>
-                          {header.map((h, i) => (
-                            <option key={i} value={i}>
-                              {h || `Column ${i + 1}`}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Full Name</Label>
+                      <Select
+                        value={mapping.fullName ?? ""}
+                        onChange={(e) => setMap("fullName", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Email</Label>
+                      <Select
+                        value={mapping.email ?? ""}
+                        onChange={(e) => setMap("email", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Phone</Label>
+                      <Select
+                        value={mapping.phone ?? ""}
+                        onChange={(e) => setMap("phone", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>City</Label>
+                      <Select
+                        value={mapping.city ?? ""}
+                        onChange={(e) => setMap("city", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>County</Label>
+                      <Select
+                        value={mapping.county ?? ""}
+                        onChange={(e) => setMap("county", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>State</Label>
+                      <Select
+                        value={mapping.state ?? ""}
+                        onChange={(e) => setMap("state", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>ZIP</Label>
+                      <Select
+                        value={mapping.zip ?? ""}
+                        onChange={(e) => setMap("zip", e.target.value)}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {header.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h || `Column ${i + 1}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
                   </div>
                 </div>
 
@@ -625,8 +626,7 @@ export default function ContactImportPage() {
                     <Label>Tags (comma or newline separated)</Label>
                     <Textarea value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />
                     <HelpText>
-                      These tags get added to every imported contact. Example: “Volunteer Signup,
-                      March 2026”.
+                      These tags get added to every imported contact. Example: “Petition Signers, Feb 2026”.
                     </HelpText>
                   </div>
 
@@ -634,96 +634,46 @@ export default function ContactImportPage() {
                     <Label>Permission to contact</Label>
                     <Select
                       value={permissionToContact}
-                      onChange={(e) => setPermissionToContact(e.target.value as "unknown" | "yes" | "no")}
+                      onChange={(e) => setPermissionToContact(e.target.value as any)}
                     >
                       <option value="unknown">Unknown</option>
                       <option value="yes">Yes</option>
                       <option value="no">No</option>
                     </Select>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">Create live follow-up tasks</div>
-                        <HelpText className="mt-1">
-                          Turn imported contacts into actionable board items for outreach.
-                        </HelpText>
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-slate-300"
-                        checked={autoCreateFollowUps}
-                        onChange={(e) => setAutoCreateFollowUps(e.target.checked)}
-                      />
-                    </div>
-
-                    {autoCreateFollowUps ? (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <Label>Entry initials</Label>
-                          <Input
-                            value={followUpInitials}
-                            maxLength={3}
-                            onChange={(e) => setFollowUpInitials(e.target.value)}
-                          />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <Label>Default follow-up note</Label>
-                          <Textarea
-                            value={followUpNotes}
-                            onChange={(e) => setFollowUpNotes(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
+                    <HelpText>
+                      We store this on the server payload so your texting/email tools can respect consent.
+                    </HelpText>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="text-sm font-semibold text-slate-900">3) Preview (first 25 rows)</div>
-                <div className="overflow-x-auto rounded-xl border">
+                <div className="border rounded-xl overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-100">
                       <tr>
-                        <th className="p-2 text-left">Display Name</th>
+                        <th className="p-2 text-left">Name</th>
                         <th className="p-2 text-left">Email</th>
                         <th className="p-2 text-left">Phone</th>
                         <th className="p-2 text-left">City</th>
                         <th className="p-2 text-left">County</th>
                         <th className="p-2 text-left">State</th>
                         <th className="p-2 text-left">ZIP</th>
-                        <th className="p-2 text-left">Ready</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {previewRows.map((r, i) => {
-                        const ready = hasReachableKey(r);
-                        return (
-                          <tr key={i} className="border-t">
-                            <td className="p-2">{defaultDisplayName(r)}</td>
-                            <td className="p-2">{r.email}</td>
-                            <td className="p-2">{r.phone}</td>
-                            <td className="p-2">{r.city}</td>
-                            <td className="p-2">{r.county}</td>
-                            <td className="p-2">{r.state || defaultState}</td>
-                            <td className="p-2">{r.zip}</td>
-                            <td className="p-2">
-                              <span
-                                className={[
-                                  "rounded-full px-2 py-1 text-xs font-semibold",
-                                  ready
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-rose-100 text-rose-700",
-                                ].join(" ")}
-                              >
-                                {ready ? "Import" : "Skip"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {previewRows.map((r, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2">{r.fullName}</td>
+                          <td className="p-2">{r.email}</td>
+                          <td className="p-2">{r.phone}</td>
+                          <td className="p-2">{r.city}</td>
+                          <td className="p-2">{r.county}</td>
+                          <td className="p-2">{r.state || defaultState}</td>
+                          <td className="p-2">{r.zip}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -732,9 +682,8 @@ export default function ContactImportPage() {
           ) : (
             <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
               <div className="text-sm font-semibold text-slate-900">Ready when you are</div>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                Upload a CSV and we’ll walk you through mapping, validating, importing, and pushing
-                the contacts straight into actionable follow-up workflows.
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Upload a CSV and we’ll walk you through mapping, validating, and importing into the campaign CRM.
               </p>
               {error ? <ErrorText>{error}</ErrorText> : null}
             </div>
@@ -743,8 +692,7 @@ export default function ContactImportPage() {
           <section className="space-y-3">
             <div className="text-sm font-semibold text-slate-900">Next up</div>
             <HelpText>
-              From here, jump into the Contacts Directory to enrich profiles, assign teams, and use
-              AI-assisted sorting by hashtags, location, skills, and organizing need.
+              Coming next: XLSX import, Google Contacts import, device contacts picker, and bulk SMS/email tools.
             </HelpText>
           </section>
         </CardContent>

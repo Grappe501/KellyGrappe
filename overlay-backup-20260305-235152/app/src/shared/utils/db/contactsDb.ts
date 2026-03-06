@@ -89,7 +89,6 @@ export {
   addLiveFollowUp,
   updateLiveFollowUp,
   listLiveFollowUps,
-  listLiveFollowUpsForContact,
   listLiveFollowUpsPendingSync,
   markLiveFollowUpSynced,
   markLiveFollowUpSyncError,

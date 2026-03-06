@@ -11,53 +11,7 @@ import { Routes, Route } from "react-router-dom";
 
 import { syncPendingFollowUps } from "./shared/utils/syncEngine";
 
-/* -------------------------------------------------------------------------- */
-/* ROUTE REGISTRY                                                             */
-/* -------------------------------------------------------------------------- */
-/*
-  All application routes must be declared here.
-
-  Benefits:
-  - Prevents magic strings
-  - Enables typed navigation helpers
-  - Enables future permission guards
-  - Central place to view system surface area
-*/
-
-export const ROUTES = {
-  ROOT: "/",
-
-  /* Intake */
-
-  EVENT_REQUEST: "/event-request",
-  CONTACT_IMPORT: "/contact-import",
-  LIVE_CONTACT: "/live-contact",
-
-  /* Operations */
-
-  LIVE_CONTACTS: "/live-contacts",
-
-  /* CRM */
-
-  CONTACTS: "/contacts",
-  CONTACT_PROFILE: "/contacts/:id",
-
-  /* Utilities */
-
-  BUSINESS_CARD_SCAN: "/business-card-scan",
-
-  /* System */
-
-  THANK_YOU: "/thank-you",
-
-  /* Campaign Intelligence */
-
-  DASHBOARD: "/dashboard",
-  ORGANIZER_TREE: "/organizer-tree",
-
-} as const;
-
-export type AppRouteKey = keyof typeof ROUTES;
+import { ROUTES } from "./shared/routes";
 
 /* -------------------------------------------------------------------------- */
 /* SYNC CONFIG                                                                */
@@ -81,6 +35,10 @@ const EventRequestPage = React.lazy(
 );
 
 const ContactImportPage = React.lazy(
+  () => import("./modules/CONTACT_IMPORT/ContactImportPage")
+);
+
+const TeamSignupPage = React.lazy(
   () => import("./modules/teamSignup/TeamSignupPage")
 );
 
@@ -265,6 +223,8 @@ export default function App() {
       { path: ROUTES.EVENT_REQUEST, element: <EventRequestPage /> },
 
       { path: ROUTES.CONTACT_IMPORT, element: <ContactImportPage /> },
+
+      { path: ROUTES.TEAM_SIGNUP, element: <TeamSignupPage /> },
 
       { path: ROUTES.LIVE_CONTACT, element: <LiveContactPage /> },
 

@@ -180,41 +180,6 @@ export async function listLiveFollowUps(): Promise<LiveFollowUp[]> {
 
 }
 
-
-export async function listLiveFollowUpsForContact(contactId: string): Promise<LiveFollowUp[]> {
-
-  const db = await openDb();
-
-  const tx = db.transaction(STORE_LIVE_FOLLOWUPS, "readonly");
-
-  const store = tx.objectStore(STORE_LIVE_FOLLOWUPS);
-
-  try {
-
-    let rows: LiveFollowUp[] = [];
-
-    if (store.indexNames.contains("contactId")) {
-      const idx = store.index("contactId");
-      rows = (await reqToPromise(idx.getAll(contactId))) as LiveFollowUp[];
-    } else {
-      const all = (await reqToPromise(store.getAll())) as LiveFollowUp[];
-      rows = (all ?? []).filter((row) => row.contactId === contactId);
-    }
-
-    await txDone(tx);
-
-    return (rows ?? []).sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
-
-  } catch (e: any) {
-
-    await txDone(tx).catch(() => {});
-
-    throw new Error(e?.message ?? "Failed to list follow-ups for contact.");
-
-  }
-
-}
-
 /* --------------------------- LIST PENDING SYNC --------------------------- */
 
 export async function listLiveFollowUpsPendingSync(): Promise<LiveFollowUp[]> {
