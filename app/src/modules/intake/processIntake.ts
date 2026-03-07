@@ -5,6 +5,7 @@
    Responsibility:
    - Normalize module form data
    - Map to pipeline format
+   - Enforce safe data permissions
    - Call shared intake pipeline
 */
 
@@ -20,6 +21,14 @@ import {
 export type ProcessIntakeInput = {
   form: Record<string, any>;
   source: string;
+
+  workspaceId?: string;
+  organizationId?: string;
+
+  user?: {
+    id: string;
+    role: string;
+  };
 };
 
 /* ------------------------------------------------------ */
@@ -33,8 +42,46 @@ function safeTrim(v: unknown): string {
 function normalizePhone(raw?: string) {
   const v = safeTrim(raw);
   if (!v) return undefined;
+
   const digits = v.replace(/\D/g, "");
   return digits || undefined;
+}
+
+/* ------------------------------------------------------ */
+/* SAFE PERMISSION FILTER
+   Prevents tenants from writing protected fields
+------------------------------------------------------ */
+
+function sanitizeTenantInput(form: Record<string, any>) {
+  return {
+    fullName: safeTrim(form.fullName),
+    email: safeTrim(form.email).toLowerCase(),
+    phone: normalizePhone(form.phone),
+
+    city: safeTrim(form.city),
+    county: safeTrim(form.county),
+    state: safeTrim(form.state),
+    zip: safeTrim(form.zip),
+
+    category: form.category,
+    supportLevel: form.supportLevel,
+    bestContactMethod: form.bestContactMethod,
+
+    introducedBy: safeTrim(form.introducedBy),
+    organization: safeTrim(form.organization),
+
+    metWhere: safeTrim(form.metWhere),
+    metWhereDetails: safeTrim(form.metWhereDetails),
+    eventName: safeTrim(form.eventName),
+
+    topIssue: safeTrim(form.topIssue),
+    conversationNotes: safeTrim(form.conversationNotes),
+
+    tags: Array.isArray(form.tags) ? form.tags : [],
+    teamAssignments: Array.isArray(form.teamAssignments)
+      ? form.teamAssignments
+      : [],
+  };
 }
 
 /* ------------------------------------------------------ */
@@ -45,43 +92,60 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
   const form = input.form ?? {};
   const source = safeTrim(input.source) || "unknown";
 
+  const workspaceId = input.workspaceId;
+  const organizationId = input.organizationId;
+  const user = input.user;
+
+  /* Ensure workspace context exists */
+
+  if (!workspaceId) {
+    throw new Error("Workspace context missing. Intake blocked.");
+  }
+
+  const sanitized = sanitizeTenantInput(form);
+
   const params: ProcessIntakeParams = {
     originType: source as any,
     rawPayload: form,
 
+    workspaceId,
+    organizationId,
+    submittedBy: user?.id,
+
     contact: {
-      fullName: safeTrim(form.fullName) || undefined,
-      email: safeTrim(form.email).toLowerCase() || undefined,
-      phone: normalizePhone(form.phone),
+      fullName: sanitized.fullName || undefined,
+      email: sanitized.email || undefined,
+      phone: sanitized.phone || undefined,
 
-      city: safeTrim(form.city) || undefined,
-      county: safeTrim(form.county) || undefined,
-      state: safeTrim(form.state) || undefined,
-      zip: safeTrim(form.zip) || undefined,
+      city: sanitized.city || undefined,
+      county: sanitized.county || undefined,
+      state: sanitized.state || undefined,
+      zip: sanitized.zip || undefined,
 
-      precinct: safeTrim(form.precinct) || undefined,
-      congressionalDistrict: safeTrim(form.congressionalDistrict) || undefined,
-      stateHouseDistrict: safeTrim(form.stateHouseDistrict) || undefined,
-      stateSenateDistrict: safeTrim(form.stateSenateDistrict) || undefined,
+      /* Protected voter data fields
+         These must NEVER be accepted from tenants */
 
-      category: form.category,
-      supportLevel: form.supportLevel,
-      bestContactMethod: form.bestContactMethod,
+      precinct: undefined,
+      congressionalDistrict: undefined,
+      stateHouseDistrict: undefined,
+      stateSenateDistrict: undefined,
 
-      introducedBy: safeTrim(form.introducedBy) || undefined,
-      organization: safeTrim(form.organization) || undefined,
+      category: sanitized.category,
+      supportLevel: sanitized.supportLevel,
+      bestContactMethod: sanitized.bestContactMethod,
 
-      metWhere: safeTrim(form.metWhere) || undefined,
-      metWhereDetails: safeTrim(form.metWhereDetails) || undefined,
-      eventName: safeTrim(form.eventName) || undefined,
+      introducedBy: sanitized.introducedBy || undefined,
+      organization: sanitized.organization || undefined,
 
-      topIssue: safeTrim(form.topIssue) || undefined,
-      conversationNotes: safeTrim(form.conversationNotes) || undefined,
+      metWhere: sanitized.metWhere || undefined,
+      metWhereDetails: sanitized.metWhereDetails || undefined,
+      eventName: sanitized.eventName || undefined,
 
-      tags: Array.isArray(form.tags) ? form.tags : [],
-      teamAssignments: Array.isArray(form.teamAssignments)
-        ? form.teamAssignments
-        : [],
+      topIssue: sanitized.topIssue || undefined,
+      conversationNotes: sanitized.conversationNotes || undefined,
+
+      tags: sanitized.tags,
+      teamAssignments: sanitized.teamAssignments,
     },
 
     followUp: {

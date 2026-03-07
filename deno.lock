@@ -11,6 +11,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@sendgrid/mail@^8.1.6",
         "npm:openai@^6.25.0"
       ]
     }

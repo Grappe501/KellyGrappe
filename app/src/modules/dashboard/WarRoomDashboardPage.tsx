@@ -1,12 +1,13 @@
 /* app/src/modules/dashboard/WarRoomDashboardPage.tsx
    Campaign War Room Dashboard
-   Stable build-safe version
+   Messaging Enabled Version
 */
 
 import React, { useEffect, useState } from "react"
 
 import Container from "../../shared/components/Container"
 import { Card, CardHeader, CardContent } from "../../shared/components/Card"
+import { Button, Input } from "../../shared/components/FormControls"
 
 import { listContacts } from "../../shared/utils/db/services/contacts.service"
 import { listLiveFollowUps } from "../../shared/utils/db/services/followups.service"
@@ -63,7 +64,6 @@ async function loadMetrics(
 
   const contacts = await listContacts().catch(() => [])
 
-  /* FIX: explicit cast so TS doesn't infer unknown[] */
   const followups =
     (await listLiveFollowUps().catch(() => [])) as LiveFollowUp[]
 
@@ -140,6 +140,16 @@ export default function WarRoomDashboardPage() {
   const [lastRefresh, setLastRefresh] =
     useState<number>(Date.now())
 
+  /* Messaging state */
+
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [subject, setSubject] = useState("")
+  const [message, setMessage] = useState("")
+  const [msgStatus, setMsgStatus] = useState("")
+
+  /* ---------------- DATA LOAD ---------------- */
+
   async function load() {
 
     try {
@@ -180,6 +190,75 @@ export default function WarRoomDashboardPage() {
       clearInterval(interval)
 
   }, [])
+
+  /* ---------------- SMS ---------------- */
+
+  async function sendSMS() {
+
+    try {
+
+      setMsgStatus("Sending SMS...")
+
+      const res = await fetch(
+        "/.netlify/functions/send-sms",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: phone,
+            message
+          })
+        }
+      )
+
+      const data = await res.json()
+
+      setMsgStatus(`SMS Result: ${JSON.stringify(data)}`)
+
+    } catch (err: any) {
+
+      setMsgStatus(
+        err?.message ?? "SMS send failed"
+      )
+
+    }
+
+  }
+
+  /* ---------------- EMAIL ---------------- */
+
+  async function sendEmail() {
+
+    try {
+
+      setMsgStatus("Sending Email...")
+
+      const res = await fetch(
+        "/.netlify/functions/send-email",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: email,
+            subject,
+            text: message
+          })
+        }
+      )
+
+      const data = await res.json()
+
+      setMsgStatus(`Email Result: ${JSON.stringify(data)}`)
+
+    } catch (err: any) {
+
+      setMsgStatus(
+        err?.message ?? "Email send failed"
+      )
+
+    }
+
+  }
 
   /* ---------------- LOADING ---------------- */
 
@@ -233,7 +312,7 @@ export default function WarRoomDashboardPage() {
 
     <Container>
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-8 p-6">
 
         {/* HEADER */}
 
@@ -241,7 +320,7 @@ export default function WarRoomDashboardPage() {
 
           <div>
 
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-3xl font-bold text-indigo-700">
               Campaign War Room
             </h1>
 
@@ -260,11 +339,9 @@ export default function WarRoomDashboardPage() {
 
         </div>
 
-        {/* GRID */}
+        {/* METRICS GRID */}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-          {/* Vote Goal */}
 
           <Card>
 
@@ -302,8 +379,6 @@ export default function WarRoomDashboardPage() {
 
           </Card>
 
-          {/* Contacts */}
-
           <Card>
 
             <CardHeader
@@ -325,8 +400,6 @@ export default function WarRoomDashboardPage() {
 
           </Card>
 
-          {/* Power of 5 */}
-
           <Card>
 
             <CardHeader
@@ -347,8 +420,6 @@ export default function WarRoomDashboardPage() {
             </CardContent>
 
           </Card>
-
-          {/* Follow Ups */}
 
           <Card>
 
@@ -372,6 +443,65 @@ export default function WarRoomDashboardPage() {
           </Card>
 
         </div>
+
+        {/* ---------------- MESSAGING CENTER ---------------- */}
+
+        <Card>
+
+          <CardHeader
+            title="Messaging Center"
+            subtitle="Send SMS or Email to a contact"
+          />
+
+          <CardContent>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              <Input
+                placeholder="Phone Number"
+                value={phone}
+                onChange={(e)=>setPhone(e.target.value)}
+              />
+
+              <Input
+                placeholder="Email Address"
+                value={email}
+                onChange={(e)=>setEmail(e.target.value)}
+              />
+
+              <Input
+                placeholder="Email Subject"
+                value={subject}
+                onChange={(e)=>setSubject(e.target.value)}
+              />
+
+              <Input
+                placeholder="Message"
+                value={message}
+                onChange={(e)=>setMessage(e.target.value)}
+              />
+
+            </div>
+
+            <div className="flex gap-3 mt-4">
+
+              <Button onClick={sendSMS}>
+                Send SMS
+              </Button>
+
+              <Button onClick={sendEmail}>
+                Send Email
+              </Button>
+
+            </div>
+
+            <div className="text-xs text-slate-500 mt-3">
+              {msgStatus}
+            </div>
+
+          </CardContent>
+
+        </Card>
 
       </div>
 
