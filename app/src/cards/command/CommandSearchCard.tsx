@@ -6,41 +6,46 @@ import { Input, Button } from "@components/FormControls"
 import { searchContacts } from "@services/contacts.service"
 
 type ContactResult = {
-  id:string
-  fullName?:string
-  phone?:string
-  email?:string
+  id: string
+  fullName?: string
+  phone?: string
+  email?: string
 }
 
-export default function CommandSearchCard(){
+export default function CommandSearchCard() {
 
-  const [query,setQuery] = useState("")
-  const [results,setResults] = useState<ContactResult[]>([])
-  const [searching,setSearching] = useState(false)
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<ContactResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function runSearch(q:string){
+  async function runSearch(q: string) {
 
     const trimmed = q.trim()
 
-    if(!trimmed){
+    if (!trimmed) {
       setResults([])
+      setError(null)
       return
     }
 
-    try{
+    try {
 
       setSearching(true)
+      setError(null)
 
-      const res =
-        await searchContacts(trimmed,{limit:8})
+      const res = await searchContacts(trimmed)
 
-      setResults(res)
+      setResults(res ?? [])
 
-    }catch(err){
+    } catch (err: any) {
 
-      console.error("Search error",err)
+      console.error("CommandSearchCard search failed", err)
 
-    }finally{
+      setError(err?.message ?? "Search failed")
+      setResults([])
+
+    } finally {
 
       setSearching(false)
 
@@ -48,15 +53,15 @@ export default function CommandSearchCard(){
 
   }
 
-  function handleChange(v:string){
+  function handleChange(value: string) {
 
-    setQuery(v)
+    setQuery(value)
 
-    runSearch(v)
+    void runSearch(value)
 
   }
 
-  return(
+  return (
 
     <Card>
 
@@ -72,7 +77,9 @@ export default function CommandSearchCard(){
           <Input
             placeholder="Search name, phone, email..."
             value={query}
-            onChange={(e)=>handleChange(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              handleChange(e.target.value)
+            }
           />
 
           {searching && (
@@ -81,26 +88,38 @@ export default function CommandSearchCard(){
             </div>
           )}
 
+          {error && (
+            <div className="text-xs text-red-600">
+              {error}
+            </div>
+          )}
+
+          {!searching && !error && query.trim() && results.length === 0 && (
+            <div className="text-xs text-slate-500">
+              No matching contacts found.
+            </div>
+          )}
+
           {results.length > 0 && (
 
-            <div className="border rounded divide-y">
+            <div className="border rounded divide-y overflow-hidden">
 
-              {results.map(contact=>(
+              {results.map((contact) => (
 
                 <div
                   key={contact.id}
                   className="p-3 flex items-center justify-between hover:bg-slate-50"
                 >
 
-                  <div>
+                  <div className="min-w-0">
 
-                    <div className="font-semibold text-sm">
-                      {contact.fullName || "Unnamed Contact"}
+                    <div className="font-semibold text-sm truncate">
+                      {contact.fullName ?? "Unnamed Contact"}
                     </div>
 
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 truncate">
 
-                      {contact.phone}
+                      {contact.phone ?? "No phone"}
 
                       {contact.email && (
                         <span>
@@ -114,13 +133,8 @@ export default function CommandSearchCard(){
                   </div>
 
                   <Button
-                    onClick={()=>{
-
-                      console.log(
-                        "Open contact",
-                        contact.id
-                      )
-
+                    onClick={() => {
+                      console.log("Open contact", contact.id)
                     }}
                   >
                     Open

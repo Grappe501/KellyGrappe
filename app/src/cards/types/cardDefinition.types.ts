@@ -7,16 +7,9 @@ export type CardCategory =
   | "strategy"
   | "intelligence"
 
-export type CardWidth =
-  | "1"
-  | "2"
-  | "3"
-  | "full"
+export type CardWidth = "1" | "2" | "3" | "full"
 
-export type CardHeight =
-  | "sm"
-  | "md"
-  | "lg"
+export type CardHeight = "sm" | "md" | "lg"
 
 export type CardDisplayMode =
   | "standard"

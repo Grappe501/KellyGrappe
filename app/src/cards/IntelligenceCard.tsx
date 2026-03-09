@@ -1,33 +1,20 @@
-import React, { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader } from "@components/Card"
-import { getVoterStats } from "../shared/services/voter.service"
+import React from "react"
 
-export default function VoterIntelligenceCard() {
-  const [stats, setStats] = useState<any>(null)
+import { Card, CardHeader, CardContent } from "@components/Card"
 
-  useEffect(() => {
-    async function load() {
-      const data = await getVoterStats()
-      setStats(data)
-    }
-    load()
-  }, [])
-
-  if (!stats) return <Card>Loading...</Card>
+export default function IntelligenceCard() {
 
   return (
     <Card>
-      <CardHeader>Voter Intelligence</CardHeader>
+      <CardHeader
+        title="Voter Intelligence"
+        subtitle="Live voter data insights"
+      />
 
       <CardContent>
-
-        <div>Voters Indexed: {stats.voters}</div>
-
-        <div>Matched Contacts: {stats.matched}</div>
-
-        <div>Precinct Coverage: {stats.precincts}</div>
-
+        Intelligence module initializing...
       </CardContent>
     </Card>
   )
+
 }

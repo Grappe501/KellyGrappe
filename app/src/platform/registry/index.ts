@@ -1,6 +1,6 @@
-export * from "./card.registry";
-export * from "./dashboard.registry";
-export * from "./feature.registry";
-export * from "./role.registry";
-export * from "./microroom.registry";
-export * from "./organization.registry";
+export { cardRegistry as CardRegistry } from "./card.registry"
+export { dashboardRegistry as DashboardRegistry } from "./dashboard.registry"
+export { featureRegistry as FeatureRegistry } from "./feature.registry"
+export { roleRegistry as RoleRegistry } from "./role.registry"
+export { microroomRegistry as MicroRoomRegistry } from "./microroom.registry"
+export { organizationRegistry as OrganizationRegistry } from "./organization.registry"
