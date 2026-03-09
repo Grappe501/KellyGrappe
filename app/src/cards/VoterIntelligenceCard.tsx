@@ -24,7 +24,12 @@ export default function VoterIntelligenceCard() {
 
       const data = await getVoterStats()
 
-      setStats(data)
+      // normalize null → undefined so TypeScript is satisfied
+      setStats({
+        voters: data?.voters ?? undefined,
+        matched: data?.matched ?? undefined,
+        precincts: data?.precincts ?? undefined
+      })
 
       setError(null)
 
@@ -44,7 +49,7 @@ export default function VoterIntelligenceCard() {
 
   useEffect(() => {
 
-    loadStats()
+    void loadStats()
 
   }, [])
 
