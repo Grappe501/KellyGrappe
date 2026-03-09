@@ -25,7 +25,7 @@ import { registerWarRoomTemplate } from "../dashboard/templates/warRoom.template
 /*
 Cards self-register when registry file loads
 */
-import "../../cards/registry"
+import "@cards/registry"
 
 let bootstrapped = false
 

@@ -1,9 +1,9 @@
 import React, { useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../../../shared/components/Card"
-import { Input, Button } from "../../../shared/components/FormControls"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { Input, Button } from "@components/FormControls"
 
-import { searchContacts } from "../../../shared/utils/db/services/contacts.service"
+import { searchContacts } from "@services/contacts.service"
 
 type ContactResult = {
   id:string

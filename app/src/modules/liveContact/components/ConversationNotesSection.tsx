@@ -1,5 +1,5 @@
 import React from 'react';
-import { Label, Textarea, Input, HelpText } from '../../../shared/components/FormControls';
+import { Label, Textarea, Input, HelpText } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 
 export function ConversationNotesSection(props: {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Input, Label, HelpText } from '../../../shared/components/FormControls';
+import { Input, Label, HelpText } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 
 export function ContactLocationSection(props: {

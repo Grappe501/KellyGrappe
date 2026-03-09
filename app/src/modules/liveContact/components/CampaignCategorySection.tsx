@@ -1,5 +1,5 @@
 import React from 'react';
-import { Label, Select, HelpText } from '../../../shared/components/FormControls';
+import { Label, Select, HelpText } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 
 export const CATEGORY_OPTIONS = [

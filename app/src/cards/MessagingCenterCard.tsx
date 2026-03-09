@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../shared/components/Card"
-import { Button, Input, Textarea } from "../shared/components/FormControls"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { Button, Input, Textarea } from "@components/FormControls"
 
 type MessageChannel = "sms" | "email"
 

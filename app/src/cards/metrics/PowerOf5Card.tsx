@@ -1,2 +1,2 @@
-import { relationships } from "../../shared/utils/db/services/relationships.service.ts";
+import { relationships } from "@services/relationships.service.ts";
 

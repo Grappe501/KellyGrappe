@@ -1,9 +1,9 @@
 import {
     type ContactRelationship,
     type ContactRelationshipType,
-  } from "../../shared/utils/db/contactsDb";
+  } from "@db/contactsDb";
   
-  import { openDb } from "../../shared/utils/db/contactsDb";
+  import { openDb } from "@db/contactsDb";
   
   const STORE_CONTACT_RELATIONSHIPS = "contact_relationships";
   

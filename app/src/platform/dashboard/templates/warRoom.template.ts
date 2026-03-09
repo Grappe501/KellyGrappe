@@ -1,5 +1,5 @@
-import { DashboardRegistry } from "../../platform/registry";
-import type { DashboardTemplate } from "../../cards/types";
+import { DashboardRegistry } from "@platform/registry";
+import type { DashboardTemplate } from "@cards/types";
 
 const warRoomTemplate: DashboardTemplate = {
   key: "war_room",

@@ -1,5 +1,5 @@
 import React from "react";
-import { HelpText, Label } from "../../../shared/components/FormControls";
+import { HelpText, Label } from "@components/FormControls";
 import type { LiveContactForm } from "../types/LiveContactForm";
 
 /**

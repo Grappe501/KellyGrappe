@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, ErrorText, HelpText, Input, Label } from '../../../shared/components/FormControls';
+import { Button, ErrorText, HelpText, Input, Label } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 import { useBusinessCardAI } from '../hooks/useBusinessCardAI';
 import { usePhotoCapture } from '../hooks/usePhotoCapture';

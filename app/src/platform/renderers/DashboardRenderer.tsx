@@ -3,7 +3,7 @@ import React from "react";
 import type {
   DashboardRuntimeContext,
   DashboardTemplate
-} from "../../cards/types";
+} from "@cards/types";
 
 import CardRenderer from "./CardRenderer";
 

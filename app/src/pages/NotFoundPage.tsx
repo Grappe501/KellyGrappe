@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import Container from "../shared/components/Container";
-import { Card, CardHeader, CardContent } from "../shared/components/Card";
-import { Button } from "../shared/components/FormControls";
+import Container from "@components/Container";
+import { Card, CardHeader, CardContent } from "@components/Card";
+import { Button } from "@components/FormControls";
 import { ROUTES } from "../shared/routes";
 
 type Hint = { title: string; fix: string };

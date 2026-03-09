@@ -3,7 +3,7 @@ import type {
   CardCategory,
   DashboardTemplate,
   DashboardCardInstance
-} from "../../cards/types";
+} from "@cards/types";
 
 export function generateDashboardFromCategories(
   key: string,

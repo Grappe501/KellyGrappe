@@ -4,16 +4,16 @@
 
 import React, { useEffect, useState } from "react"
 
-import Container from "../../shared/components/Container"
-import { Card, CardHeader, CardContent } from "../../shared/components/Card"
+import Container from "@components/Container"
+import { Card, CardHeader, CardContent } from "@components/Card"
 
 import {
   listContactRelationships,
-} from "../../shared/utils/db/services/relationships.service"
+} from "@services/relationships.service"
 
 import {
   listContacts
-} from "../../shared/utils/db/services/contacts.service"
+} from "@services/contacts.service"
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */

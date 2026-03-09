@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import Container from "../../shared/components/Container"
-import { Card, CardHeader, CardContent } from "../../shared/components/Card"
-import { Button } from "../../shared/components/FormControls"
+import Container from "@components/Container"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { Button } from "@components/FormControls"
 
 import type {
   BestContactMethod,
-} from "../../shared/utils/db/contactsDb.types"
+} from "@db/contactsDb.types"
 
 import type { LiveContactForm } from "./types/LiveContactForm"
 
@@ -25,10 +25,10 @@ import { PhotoCaptureSection } from "./components/PhotoCaptureSection"
 import { useLiveContactForm } from "./hooks/useLiveContactForm"
 import { syncPendingFollowUps } from "../../shared/utils/syncEngine"
 
-import { upsertContact } from "../../shared/utils/db/services/contacts.service"
-import { addOrigin } from "../../shared/utils/db/services/origins.service"
-import { addLiveFollowUp } from "../../shared/utils/db/services/followups.service"
-import { addContactMedia } from "../../shared/utils/db/services/media.service"
+import { upsertContact } from "@services/contacts.service"
+import { addOrigin } from "@services/origins.service"
+import { addLiveFollowUp } from "@services/followups.service"
+import { addContactMedia } from "@services/media.service"
 
 function safeTrim(v: unknown) {
   return (v ?? "").toString().trim()

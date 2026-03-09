@@ -4,7 +4,7 @@ import { CardRegistry } from "../registry"
 import type {
   DashboardCardInstance,
   DashboardRuntimeContext
-} from "../../cards/types"
+} from "@cards/types"
 
 type CardRendererProps = {
   instance: DashboardCardInstance

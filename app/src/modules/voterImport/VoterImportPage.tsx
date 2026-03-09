@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 
-import Container from "../../shared/components/Container";
-import { Card, CardHeader, CardContent } from "../../shared/components/Card";
+import Container from "@components/Container";
+import { Card, CardHeader, CardContent } from "@components/Card";
 import {
   Button,
   HelpText,
@@ -9,7 +9,7 @@ import {
   Label,
   Select,
   Textarea,
-} from "../../shared/components/FormControls";
+} from "@components/FormControls";
 
 type CsvParseResult = {
   header: string[];

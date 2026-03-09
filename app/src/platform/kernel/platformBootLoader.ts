@@ -1,4 +1,4 @@
-import cardRegistry from "../../cards/registry"
+import cardRegistry from "@cards/registry"
 import { warRoomTemplate } from "../../dashboards/templates/warRoom.template"
 import organizationRegistry from "../registry/organization.registry"
 import dashboardRegistry from "../registry/dashboard.registry"

@@ -4,7 +4,7 @@ import {
   Label,
   HelpText,
   ErrorText,
-} from "../../../shared/components/FormControls";
+} from "@components/FormControls";
 
 import type { LiveContactForm } from "../types/LiveContactForm";
 

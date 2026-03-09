@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Card, CardHeader, CardContent } from "../../../shared/components/Card"
+import { Card, CardHeader, CardContent } from "@components/Card"
 
 type ActionQueueProps = {
 

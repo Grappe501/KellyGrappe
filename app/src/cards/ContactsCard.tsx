@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../shared/components/Card"
+import { Card, CardHeader, CardContent } from "@components/Card"
 
-import { listContacts } from "../shared/utils/db/services/contacts.service"
-import type { Contact } from "../shared/utils/db/contactsDb.types"
+import { listContacts } from "@services/contacts.service"
+import type { Contact } from "@db/contactsDb.types"
 
 export default function ContactsCard() {
 

@@ -8,10 +8,10 @@
 import React, { useCallback, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import Container from "../../shared/components/Container"
-import { Card, CardHeader, CardContent } from "../../shared/components/Card"
+import Container from "@components/Container"
+import { Card, CardHeader, CardContent } from "@components/Card"
 
-import { Button, ErrorText, Input, Label } from "../../shared/components/FormControls"
+import { Button, ErrorText, Input, Label } from "@components/FormControls"
 
 import { processIntake } from "../intake/processIntake"
 

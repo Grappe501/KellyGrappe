@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
-import { Card, CardHeader, CardContent } from "../shared/components/Card"
-import { supabase } from "../shared/utils/db/supabase"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { supabase } from "@db/supabase"
 
 type CountyStats = {
   county: string

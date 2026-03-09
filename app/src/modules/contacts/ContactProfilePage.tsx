@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import Container from "../../shared/components/Container";
-import { Card, CardHeader, CardContent } from "../../shared/components/Card";
+import Container from "@components/Container";
+import { Card, CardHeader, CardContent } from "@components/Card";
 import {
   Input,
   Label,
@@ -10,7 +10,7 @@ import {
   Button,
   Select,
   HelpText,
-} from "../../shared/components/FormControls";
+} from "@components/FormControls";
 
 import {
   addLiveFollowUp,
@@ -19,7 +19,7 @@ import {
   type Contact,
   type LiveFollowUp,
   updateContact,
-} from "../../shared/utils/db/contactsDb";
+} from "@db/contactsDb";
 
 function safeTrim(v: unknown) {
   return String(v ?? "").trim();

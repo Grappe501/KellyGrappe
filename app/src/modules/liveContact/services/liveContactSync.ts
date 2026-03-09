@@ -3,7 +3,7 @@ import {
   markLiveFollowUpSynced,
   markLiveFollowUpSyncError,
   type LiveFollowUp,
-} from '../../../shared/utils/db/contactsDb';
+} from '@db/contactsDb';
 import { buildServerFollowUpPayload } from './followupPayloadBuilder';
 
 export async function syncPendingLiveFollowUps(): Promise<{ attempted: number; synced: number; errors: number }> {

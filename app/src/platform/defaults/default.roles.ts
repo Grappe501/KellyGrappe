@@ -1,5 +1,5 @@
 import { RoleRegistry } from "../registry";
-import type { RoleDashboardDefinition } from "../../cards/types";
+import type { RoleDashboardDefinition } from "@cards/types";
 
 const DEFAULT_ROLES: RoleDashboardDefinition[] = [
   {

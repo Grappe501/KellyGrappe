@@ -1,5 +1,5 @@
 import { MicroRoomRegistry } from "../registry";
-import type { MicroRoomDefinition } from "../../cards/types";
+import type { MicroRoomDefinition } from "@cards/types";
 
 const DEFAULT_MICROROOMS: MicroRoomDefinition[] = [
   {

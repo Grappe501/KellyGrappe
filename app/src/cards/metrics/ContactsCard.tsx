@@ -1,2 +1,2 @@
-import { contacts } from "../../shared/utils/db/services/contacts.service.ts";
+import { contacts } from "@services/contacts.service.ts";
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Input, Label, Select, HelpText } from '../../../shared/components/FormControls';
+import { Input, Label, Select, HelpText } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 
 const MET_WHERE_OPTIONS = [

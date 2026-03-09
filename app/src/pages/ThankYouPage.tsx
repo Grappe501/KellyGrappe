@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import Container from '../shared/components/Container';
-import { Card, CardHeader, CardContent } from '../shared/components/Card';
-import { Button } from '../shared/components/FormControls';
+import Container from '@components/Container';
+import { Card, CardHeader, CardContent } from '@components/Card';
+import { Button } from '@components/FormControls';
 
 export default function ThankYouPage() {
   const nav = useNavigate();

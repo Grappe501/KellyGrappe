@@ -1,7 +1,7 @@
-import Container from "../../shared/components/Container"
+import Container from "@components/Container"
 
 import { warRoomTemplate } from "../../dashboards/templates/warRoom.template"
-import { loadCard } from "../../cards/cardloader"
+import { loadCard } from "@cards/cardloader"
 
 export default function WarRoomDashboardPage() {
 

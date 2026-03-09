@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../shared/components/Card"
+import { Card, CardHeader, CardContent } from "@components/Card"
 
-import { getVoterStats } from "../shared/utils/db/services/voter.service"
+import { getVoterStats } from "@services/voter.service"
 
 type VoterStats = {
   voters?: number

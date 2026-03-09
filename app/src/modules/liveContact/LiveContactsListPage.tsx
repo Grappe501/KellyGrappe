@@ -2,14 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Container from "../../shared/components/Container";
-import { Card, CardContent, CardHeader } from "../../shared/components/Card";
+import Container from "@components/Container";
+import { Card, CardContent, CardHeader } from "@components/Card";
 import {
   Button,
   ErrorText,
   HelpText,
   Input,
-} from "../../shared/components/FormControls";
+} from "@components/FormControls";
 
 import {
   useFollowUps,

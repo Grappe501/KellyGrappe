@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../../../shared/components/Card"
-import { Input, Textarea, Button, Label } from "../../../shared/components/FormControls"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { Input, Textarea, Button, Label } from "@components/FormControls"
 
-import { listContactsDirectoryRows } from "../../../shared/utils/db/services/contacts.service"
+import { listContactsDirectoryRows } from "@services/contacts.service"
 
 type ContactRow = {
   id:string

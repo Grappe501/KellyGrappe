@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react"
 
-import Container from "../../shared/components/Container"
+import Container from "@components/Container"
 
 import CommandSearchCard from "./components/CommandSearchCard"
 import VoteGoalCard from "./components/VoteGoalCard"
@@ -15,10 +15,10 @@ import FollowUpBreakdownCard from "./components/FollowUpBreakdownCard"
 import MessagingCenterCard from "./components/MessagingCenterCard"
 import CommandSummaryCard from "./components/CommandSummaryCard"
 
-import { listContacts } from "../../shared/utils/db/services/contacts.service"
-import { listLiveFollowUps } from "../../shared/utils/db/services/followups.service"
+import { listContacts } from "@services/contacts.service"
+import { listLiveFollowUps } from "@services/followups.service"
 
-import type { LiveFollowUp } from "../../shared/utils/db/contactsDb.types"
+import type { LiveFollowUp } from "@db/contactsDb.types"
 
 /* ---------------- CONFIG ---------------- */
 

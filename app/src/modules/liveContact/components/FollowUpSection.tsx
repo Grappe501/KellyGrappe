@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpText, Input, Label, Textarea } from '../../../shared/components/FormControls';
+import { HelpText, Input, Label, Textarea } from '@components/FormControls';
 import type { LiveContactForm } from '../types/LiveContactForm';
 
 export function FollowUpSection(props: {

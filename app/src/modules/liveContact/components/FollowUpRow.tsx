@@ -6,7 +6,7 @@ import {
   Label,
   Textarea,
   Input,
-} from "../../../shared/components/FormControls";
+} from "@components/FormControls";
 import type { UnifiedRow } from "../hooks/useFollowUps";
 
 type FollowUpStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";

@@ -1,10 +1,10 @@
 import React, { useState } from "react"
 
-import { Card, CardHeader, CardContent } from "../shared/components/Card"
-import { Button, Input } from "../shared/components/FormControls"
+import { Card, CardHeader, CardContent } from "@components/Card"
+import { Button, Input } from "@components/FormControls"
 
-import { searchContacts } from "../shared/utils/db/services/contacts.service"
-import type { Contact } from "../shared/utils/db/contactsDb.types"
+import { searchContacts } from "@services/contacts.service"
+import type { Contact } from "@db/contactsDb.types"
 
 type CommandSearchCardProps = {
   onSelectContact?: (contact: Contact) => void

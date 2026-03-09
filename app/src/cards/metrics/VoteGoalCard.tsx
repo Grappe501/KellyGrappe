@@ -1,2 +1,2 @@
-import { voterMatching } from "../../shared/utils/db/services/voterMatching.service.ts";
+import { voterMatching } from "@services/voterMatching.service.ts";
 
