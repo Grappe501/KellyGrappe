@@ -1,19 +1,63 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+
     "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+
     "module": "ESNext",
-    "skipLibCheck": true,
 
     "moduleResolution": "Bundler",
+
     "resolveJsonModule": true,
+
     "isolatedModules": true,
+
     "noEmit": true,
+
     "jsx": "react-jsx",
 
     "strict": true,
-    "types": ["vite/client"]
+
+    "skipLibCheck": true,
+
+    "forceConsistentCasingInFileNames": true,
+
+    "allowSyntheticDefaultImports": true,
+
+    "esModuleInterop": true,
+
+    "types": [
+      "vite/client",
+      "node"
+    ],
+
+    "baseUrl": "./src",
+
+    "paths": {
+      "@cards/*": ["cards/*"],
+      "@dashboards/*": ["dashboards/*"],
+      "@modules/*": ["modules/*"],
+      "@shared/*": ["shared/*"],
+      "@components/*": ["shared/components/*"],
+      "@services/*": ["shared/utils/db/services/*"],
+      "@db/*": ["shared/utils/db/*"],
+      "@integrations/*": ["integrations/*"],
+      "@ai/*": ["ai/*"]
+    }
   },
-  "include": ["src"]
+
+  "include": [
+    "src"
+  ],
+
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
