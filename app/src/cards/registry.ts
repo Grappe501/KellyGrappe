@@ -13,6 +13,13 @@ import VoteGoalCard from "./metrics/VoteGoalCard";
 import VoterIntelligenceCard from "./VoterIntelligenceCard";
 import WinTargetStrategyCard from "./WinTargetStrategyCard";
 
+/*
+ CORE CARD REGISTRY
+ ------------------
+ This is the runtime registry used by the platform loader.
+ Every card that can appear on a dashboard must be registered here.
+*/
+
 export const cardRegistry = {
   "action-queue": ActionQueueCard,
 
@@ -32,4 +39,12 @@ export const cardRegistry = {
   "strategy-target": WinTargetStrategyCard
 };
 
-export default cardRegistry;
+/*
+ Types derived automatically from registry
+*/
+
+export type CardType = keyof typeof cardRegistry
+
+export type CardComponent = (typeof cardRegistry)[CardType]
+
+export default cardRegistry

@@ -15,43 +15,42 @@ features
 are registered before any dashboard renders.
 */
 
-import { registerDefaultRoles } from "./defaults/default.roles";
-import { registerDefaultFeatures } from "./defaults/default.features";
-import { registerDefaultMicroRooms } from "./defaults/default.microrooms";
-import { registerDefaultBrands } from "./defaults/default.brands";
+import { registerDefaultRoles } from "./defaults/default.roles"
+import { registerDefaultFeatures } from "./defaults/default.features"
+import { registerDefaultMicroRooms } from "./defaults/default.microrooms"
+import { registerDefaultBrands } from "./defaults/default.brands"
 
-import { registerWarRoomTemplate } from "@/dashboards/templates/warRoom.template";
+import { registerWarRoomTemplate } from "../dashboard/templates/warRoom.template"
 
 /*
-Cards self-register when their registry file is imported
+Cards self-register when registry file loads
 */
-import "@/cards/registry";
+import "../../cards/registry"
 
-let bootstrapped = false;
+let bootstrapped = false
 
 export function bootstrapPlatform() {
 
-  if (bootstrapped) return;
+  if (bootstrapped) return
 
-  console.log("Bootstrapping platform...");
+  console.log("Bootstrapping platform...")
 
-  /* core features */
-  registerDefaultFeatures();
+  try {
 
-  /* roles */
-  registerDefaultRoles();
+    registerDefaultFeatures()
+    registerDefaultRoles()
+    registerDefaultMicroRooms()
+    registerDefaultBrands()
+    registerWarRoomTemplate()
 
-  /* microrooms */
-  registerDefaultMicroRooms();
+    bootstrapped = true
 
-  /* branding / themes */
-  registerDefaultBrands();
+    console.log("Platform bootstrap complete")
 
-  /* dashboards */
-  registerWarRoomTemplate();
+  } catch (err) {
 
-  bootstrapped = true;
+    console.error("Platform bootstrap failed", err)
 
-  console.log("Platform bootstrap complete");
+  }
 
 }
