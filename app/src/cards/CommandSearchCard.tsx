@@ -4,17 +4,20 @@ import { Card, CardHeader, CardContent } from "@components/Card"
 import { Button, Input } from "@components/FormControls"
 
 import { searchContacts } from "@services/contacts.service"
+
+import type { ContactDirectoryRow } from "@db/contactsDb.types"
 import type { Contact } from "@db/contactsDb.types"
 
 type CommandSearchCardProps = {
-  onSelectContact?: (contact: Contact) => void
+  onSelectContact?: (contact: ContactDirectoryRow | Contact) => void
 }
 
 export default function CommandSearchCard({
   onSelectContact,
 }: CommandSearchCardProps) {
+
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<Contact[]>([])
+  const [results, setResults] = useState<ContactDirectoryRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,13 +34,17 @@ export default function CommandSearchCard({
       setLoading(true)
       setError(null)
 
-      const contacts = await searchContacts(q, { limit: 10 })
+      const contacts = await searchContacts(q)
 
-      setResults(contacts)
+      setResults(contacts ?? [])
+
     } catch (err: any) {
+
       console.error("Command search failed", err)
+
       setError(err?.message ?? "Search failed")
       setResults([])
+
     } finally {
       setLoading(false)
     }
@@ -57,10 +64,13 @@ export default function CommandSearchCard({
 
       <CardContent>
         <div className="space-y-4">
+
           <Input
             placeholder="Search name, phone, email..."
             value={query}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              handleChange(e.target.value)
+            }
           />
 
           {loading && (
@@ -83,20 +93,25 @@ export default function CommandSearchCard({
 
           {results.length > 0 && (
             <div className="overflow-hidden rounded border divide-y">
+
               {results.map((contact) => (
+
                 <div
                   key={contact.id}
                   className="flex items-center justify-between gap-3 p-3 hover:bg-slate-50"
                 >
+
                   <div className="min-w-0">
+
                     <div className="truncate text-sm font-semibold">
-                      {contact.fullName || "Unnamed"}
+                      {contact.fullName ?? "Unnamed"}
                     </div>
 
                     <div className="truncate text-xs text-slate-500">
-                      {contact.phone || "No phone"}
+                      {contact.phone ?? "No phone"}
                       {contact.email ? ` • ${contact.email}` : ""}
                     </div>
+
                   </div>
 
                   <Button
@@ -104,10 +119,14 @@ export default function CommandSearchCard({
                   >
                     Select
                   </Button>
+
                 </div>
+
               ))}
+
             </div>
           )}
+
         </div>
       </CardContent>
     </Card>
