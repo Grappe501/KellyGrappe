@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import Container from "@components/Container";
-import { Card, CardHeader, CardContent } from "@components/Card";
-import { Button } from "@components/FormControls";
+import Container from "../shared/components/Container";
+import { Card, CardHeader, CardContent } from "../shared/components/Card";
+import { Button } from "../shared/components/FormControls";
 import { ROUTES } from "../shared/routes";
 
 type Hint = { title: string; fix: string };
@@ -20,21 +20,25 @@ export default function NotFoundPage() {
     // Contacts-specific hints
     if (attempted.startsWith("/contacts")) {
       const parts = attempted.split("/").filter(Boolean); // e.g. ["contacts","123","edit"]
+
       if (parts.length === 1) {
-        // /contacts is valid; if they got here, they likely have a trailing mismatch
         out.push({
-          title: "This looks like the contacts area, but the URL did not match a known page.",
-          fix: "Try /contacts for the directory, or open a contact from the directory instead of typing the URL.",
+          title:
+            "This looks like the contacts area, but the URL did not match a known page.",
+          fix:
+            "Try /contacts for the directory, or open a contact from the directory instead of typing the URL.",
         });
       } else if (parts.length >= 3) {
         out.push({
           title: "This contact link has extra path segments.",
-          fix: "Use /contacts/{id} only. If you copied a link like /contacts/{id}/edit, that route does not exist yet.",
+          fix:
+            "Use /contacts/{id} only. If you copied a link like /contacts/{id}/edit, that route does not exist yet.",
         });
       } else if (parts.length === 2 && !parts[1]) {
         out.push({
           title: "Contact ID is missing.",
-          fix: "Open the contact from /contacts instead of using a partial link.",
+          fix:
+            "Open the contact from /contacts instead of using a partial link.",
         });
       }
     }
@@ -43,21 +47,22 @@ export default function NotFoundPage() {
     if (attempted.includes("//")) {
       out.push({
         title: "The URL contains a double slash.",
-        fix: "Remove the extra “/” and try again.",
+        fix: "Remove the extra '/' and try again.",
       });
     }
 
     if (attempted.length > 1 && attempted.endsWith("/")) {
       out.push({
         title: "The URL ends with a trailing slash.",
-        fix: "Remove the final “/” and try again.",
+        fix: "Remove the final '/' and try again.",
       });
     }
 
-    // Generic guidance (always include one good help line)
+    // Generic guidance
     out.push({
       title: "No route matched this URL.",
-      fix: "If you typed the link manually, check for typos. If you clicked a saved link, it may be outdated after an update.",
+      fix:
+        "If you typed the link manually, check for typos. If you clicked a saved link, it may be outdated after an update.",
     });
 
     return out;
@@ -68,14 +73,17 @@ export default function NotFoundPage() {
       const full = `${window.location.origin}${attempted}`;
       void navigator.clipboard?.writeText(full);
     } catch {
-      // best-effort only
+      // best effort
     }
   }
 
   return (
     <Container>
       <Card>
-        <CardHeader title="404 — Page Not Found" subtitle="This route does not exist." />
+        <CardHeader
+          title="404 — Page Not Found"
+          subtitle="This route does not exist."
+        />
 
         <CardContent className="space-y-4 text-sm text-slate-600">
           <div className="bg-slate-100 rounded-md p-3 text-xs text-slate-700">
