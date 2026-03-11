@@ -1,9 +1,16 @@
-import { RoleRegistry } from "../registry";
-import type { RoleDashboardDefinition } from "@cards/types";
+import { RoleRegistry } from "../registry/role.registry"
 
-const DEFAULT_ROLES: RoleDashboardDefinition[] = [
+type DefaultRole = {
+  key: string
+  defaultDashboardTemplateKey: string
+  aiAccessLevel: "admin" | "generate" | "assist" | "read_only"
+  maxAIPromptsPerDay: number
+  defaultFeatures: Record<string, boolean>
+}
+
+const DEFAULT_ROLES: DefaultRole[] = [
   {
-    role: "platform_admin",
+    key: "platform_admin",
     defaultDashboardTemplateKey: "war_room",
     aiAccessLevel: "admin",
     maxAIPromptsPerDay: 1000,
@@ -16,8 +23,9 @@ const DEFAULT_ROLES: RoleDashboardDefinition[] = [
       analytics: true
     }
   },
+
   {
-    role: "campaign_manager",
+    key: "campaign_manager",
     defaultDashboardTemplateKey: "war_room",
     aiAccessLevel: "generate",
     maxAIPromptsPerDay: 250,
@@ -30,8 +38,9 @@ const DEFAULT_ROLES: RoleDashboardDefinition[] = [
       field: true
     }
   },
+
   {
-    role: "field_director",
+    key: "field_director",
     defaultDashboardTemplateKey: "war_room",
     aiAccessLevel: "assist",
     maxAIPromptsPerDay: 100,
@@ -42,8 +51,9 @@ const DEFAULT_ROLES: RoleDashboardDefinition[] = [
       analytics: true
     }
   },
+
   {
-    role: "volunteer",
+    key: "volunteer",
     defaultDashboardTemplateKey: "war_room",
     aiAccessLevel: "read_only",
     maxAIPromptsPerDay: 20,
@@ -52,8 +62,16 @@ const DEFAULT_ROLES: RoleDashboardDefinition[] = [
       followups: true
     }
   }
-];
+]
 
 export function registerDefaultRoles() {
-  DEFAULT_ROLES.forEach((role) => RoleRegistry.register(role));
+
+  DEFAULT_ROLES.forEach((role) => {
+
+    RoleRegistry.register({
+      ...role
+    })
+
+  })
+
 }

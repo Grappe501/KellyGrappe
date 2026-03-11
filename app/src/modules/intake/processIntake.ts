@@ -85,24 +85,24 @@ function sanitizeTenantInput(form: Record<string, any>) {
 }
 
 /* ------------------------------------------------------ */
-/* MAIN */
+/* MAIN
 /* ------------------------------------------------------ */
 
 export async function runProcessIntake(input: ProcessIntakeInput) {
+
   const form = input.form ?? {};
   const source = safeTrim(input.source) || "unknown";
 
   const workspaceId = input.workspaceId;
   const organizationId = input.organizationId;
-  const user = input.user;
 
-  /* Ensure workspace context exists */
+  /* -------------------------------------------------- */
+  /* TENANT SAFETY CHECKS
+  /* -------------------------------------------------- */
 
   if (!workspaceId) {
     throw new Error("Workspace context missing. Intake blocked.");
   }
-
-  /* Organization context optional but recommended */
 
   if (!organizationId) {
     console.warn("Organization context missing during intake.");
@@ -111,12 +111,12 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
   const sanitized = sanitizeTenantInput(form);
 
   const params: ProcessIntakeParams = {
+
     originType: source as any,
     rawPayload: form,
 
-    submittedBy: user?.id,
-
     contact: {
+
       fullName: sanitized.fullName || undefined,
       email: sanitized.email || undefined,
       phone: sanitized.phone || undefined,
@@ -127,7 +127,7 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
       zip: sanitized.zip || undefined,
 
       /* Protected voter data fields
-         These must NEVER be accepted from tenants */
+         Must never come from tenant input */
 
       precinct: undefined,
       congressionalDistrict: undefined,
@@ -153,21 +153,33 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
     },
 
     followUp: {
+
       followUpNeeded:
         typeof form.followUpNeeded === "boolean"
           ? form.followUpNeeded
           : true,
 
-      followUpNotes: safeTrim(form.followUpNotes) || undefined,
+      followUpNotes:
+        safeTrim(form.followUpNotes) || undefined,
 
-      sourceLabel: safeTrim(form.metWhere) || undefined,
-      location: safeTrim(form.city) || undefined,
-      notes: safeTrim(form.conversationNotes) || undefined,
-    },
+      sourceLabel:
+        safeTrim(form.metWhere) || undefined,
+
+      location:
+        safeTrim(form.city) || undefined,
+
+      notes:
+        safeTrim(form.conversationNotes) || undefined,
+    }
+
   };
 
   return pipelineProcessIntake(params);
+
 }
 
-/* Export legacy name for modules that already import processIntake */
+/* ------------------------------------------------------ */
+/* LEGACY EXPORT */
+/* ------------------------------------------------------ */
+
 export const processIntake = runProcessIntake;

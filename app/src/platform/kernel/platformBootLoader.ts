@@ -5,7 +5,7 @@ import { FeatureRegistry } from "@platform/registry/feature.registry"
 import { MicroRoomRegistry } from "@platform/registry/microroom.registry"
 import { RoleRegistry } from "@platform/registry/role.registry"
 
-import { warRoomTemplate } from "../../dashboard/templates/warRoom.template"
+import { warRoomTemplate } from "../../dashboards/templates/warRoom.template"
 
 export type PlatformBootContext = {
   organizationKey?: string
@@ -18,7 +18,7 @@ export type PlatformBootResult = {
     id: string
     cards: Array<{
       type: string
-      componentLoader: () => Promise<any>
+      componentLoader?: () => Promise<any>
       props?: Record<string, any>
     }>
   }
@@ -33,6 +33,7 @@ export type PlatformBootResult = {
 }
 
 function resolveDashboardTemplate(dashboardId?: string) {
+
   if (!dashboardId || dashboardId === "warRoom") {
     return warRoomTemplate
   }
@@ -42,7 +43,9 @@ function resolveDashboardTemplate(dashboardId?: string) {
   if (registryMatch?.cards?.length) {
     return {
       id: registryMatch.key || dashboardId,
-      cards: registryMatch.cards.map((type: string) => ({ type }))
+      cards: registryMatch.cards.map((card: any) => ({
+        type: typeof card === "string" ? card : card.type
+      }))
     }
   }
 
@@ -67,24 +70,30 @@ export function bootPlatform(
 
   const resolvedCards = (template.cards || []).map((card: any) => {
 
-    const type = normalizeCardType(card.type)
+    const type =
+      normalizeCardType(
+        typeof card === "string" ? card : card.type
+      )
 
     const definition = CardRegistry.get(type)
 
     return {
       type,
       componentLoader: definition?.componentLoader,
-      props: card.props || {}
+      props: card?.props || {}
     }
 
   })
 
   return {
+
     organization,
+
     dashboard: {
       id: template.id || dashboardId,
       cards: resolvedCards
     },
+
     registries: {
       cards: CardRegistry,
       organizations: OrganizationRegistry,
@@ -93,6 +102,7 @@ export function bootPlatform(
       microrooms: MicroRoomRegistry,
       roles: RoleRegistry
     }
+
   }
 
 }
