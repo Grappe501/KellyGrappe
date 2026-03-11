@@ -1,96 +1,25 @@
-import type { OrganizationDefinition } from "@/platform/types/organization.types";
+type OrganizationDefinition = {
+  key: string
+  title?: string
+  orgType?: string
+  defaultRoles?: readonly string[]
+  defaultDashboards?: readonly string[]
+  enabledMicrorooms?: readonly string[]
+  dataBoundary?: Record<string, unknown>
+}
 
-export const organizationRegistry: Record<string, OrganizationDefinition> = {
-  campaign: {
-    key: "campaign",
-    title: "Campaign Organization",
-    orgType: "campaign",
-    defaultRoles: ["admin", "operations", "field", "communications", "fundraising"],
-    defaultDashboards: ["war-room", "field-operations", "communications", "fundraising"],
-    enabledMicrorooms: ["campaign-hq", "field-ops", "fundraising-hub"],
-    dataBoundary: {
-    tenantKey: "organization_id",
-    crmMode: "isolated_per_organization",
-    volunteerMode: "isolated_per_organization",
-    notesMode: "isolated_per_organization",
-    donorMode: "isolated_per_organization",
-    voterReferenceMode: "shared_reference",
-    voterIntelligenceMode: "shared_intelligence",
-    sharedLearningPolicy: "isolated_org_records_shared_scores",
-  },
-  },
-  nonprofit: {
-    key: "nonprofit",
-    title: "Nonprofit Organization",
-    orgType: "nonprofit",
-    defaultRoles: ["admin", "operations", "organizer", "communications"],
-    defaultDashboards: ["communications", "field-operations", "data-intelligence"],
-    enabledMicrorooms: ["engagement-hub", "field-ops"],
-    dataBoundary: {
-    tenantKey: "organization_id",
-    crmMode: "isolated_per_organization",
-    volunteerMode: "isolated_per_organization",
-    notesMode: "isolated_per_organization",
-    donorMode: "isolated_per_organization",
-    voterReferenceMode: "shared_reference",
-    voterIntelligenceMode: "shared_intelligence",
-    sharedLearningPolicy: "isolated_org_records_shared_scores",
-  },
-  },
-  advocacy: {
-    key: "advocacy",
-    title: "Advocacy Organization",
-    orgType: "advocacy",
-    defaultRoles: ["admin", "organizer", "communications", "data"],
-    defaultDashboards: ["communications", "field-operations", "data-intelligence"],
-    enabledMicrorooms: ["engagement-hub", "campaign-hq"],
-    dataBoundary: {
-    tenantKey: "organization_id",
-    crmMode: "isolated_per_organization",
-    volunteerMode: "isolated_per_organization",
-    notesMode: "isolated_per_organization",
-    donorMode: "isolated_per_organization",
-    voterReferenceMode: "shared_reference",
-    voterIntelligenceMode: "shared_intelligence",
-    sharedLearningPolicy: "isolated_org_records_shared_scores",
-  },
-  },
-  media: {
-    key: "media",
-    title: "Media Organization",
-    orgType: "media",
-    defaultRoles: ["admin", "communications", "operations"],
-    defaultDashboards: ["communications", "data-intelligence"],
-    enabledMicrorooms: ["engagement-hub"],
-    dataBoundary: {
-    tenantKey: "organization_id",
-    crmMode: "isolated_per_organization",
-    volunteerMode: "isolated_per_organization",
-    notesMode: "isolated_per_organization",
-    donorMode: "isolated_per_organization",
-    voterReferenceMode: "shared_reference",
-    voterIntelligenceMode: "shared_intelligence",
-    sharedLearningPolicy: "isolated_org_records_shared_scores",
-  },
-  },
-  movement: {
-    key: "movement",
-    title: "Movement Organization",
-    orgType: "movement",
-    defaultRoles: ["admin", "organizer", "field", "communications"],
-    defaultDashboards: ["war-room", "communications", "field-operations"],
-    enabledMicrorooms: ["campaign-hq", "engagement-hub", "field-ops"],
-    dataBoundary: {
-    tenantKey: "organization_id",
-    crmMode: "isolated_per_organization",
-    volunteerMode: "isolated_per_organization",
-    notesMode: "isolated_per_organization",
-    donorMode: "isolated_per_organization",
-    voterReferenceMode: "shared_reference",
-    voterIntelligenceMode: "shared_intelligence",
-    sharedLearningPolicy: "isolated_org_records_shared_scores",
-  },
-  },
-};
+const registry = new Map<string, OrganizationDefinition>()
 
-export default organizationRegistry;
+export const OrganizationRegistry = {
+  register(org: OrganizationDefinition) {
+    registry.set(org.key, org)
+  },
+
+  get(key: string): OrganizationDefinition | undefined {
+    return registry.get(key)
+  },
+
+  getAll(): OrganizationDefinition[] {
+    return Array.from(registry.values())
+  }
+}

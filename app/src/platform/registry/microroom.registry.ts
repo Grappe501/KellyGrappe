@@ -1,20 +1,20 @@
-export const microroomRegistry = {
-  "campaign-hq": {
-    key: "campaign-hq",
-    dashboards: ["war-room", "communications", "data-intelligence"],
-  },
-  "field-ops": {
-    key: "field-ops",
-    dashboards: ["field-operations", "war-room"],
-  },
-  "engagement-hub": {
-    key: "engagement-hub",
-    dashboards: ["communications", "field-operations"],
-  },
-  "fundraising-hub": {
-    key: "fundraising-hub",
-    dashboards: ["fundraising", "data-intelligence"],
-  },
-} as const;
-
-export default microroomRegistry;
+type MicroRoomDefinition = {
+    key: string
+    dashboards: readonly string[]
+  }
+  
+  const registry = new Map<string, MicroRoomDefinition>()
+  
+  export const MicroRoomRegistry = {
+    register(room: MicroRoomDefinition) {
+      registry.set(room.key, room)
+    },
+  
+    get(key: string): MicroRoomDefinition | undefined {
+      return registry.get(key)
+    },
+  
+    getAll(): MicroRoomDefinition[] {
+      return Array.from(registry.values())
+    }
+  }

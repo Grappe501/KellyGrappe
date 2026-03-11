@@ -1,67 +1,40 @@
-export const featureRegistry = {
-  "action-queue": {
-    key: "action-queue",
-    category: "command",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-  "command-search": {
-    key: "command-search",
-    category: "command",
-    enabledByDefault: true,
-    aiEnabled: true,
-    flags: [],
-  },
-  "command-summary": {
-    key: "command-summary",
-    category: "command",
-    enabledByDefault: true,
-    aiEnabled: true,
-    flags: [],
-  },
-  "contacts": {
-    key: "contacts",
-    category: "metrics",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-  "follow-up-breakdown": {
-    key: "follow-up-breakdown",
-    category: "metrics",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-  "follow-ups": {
-    key: "follow-ups",
-    category: "metrics",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-  "messaging-center": {
-    key: "messaging-center",
-    category: "messaging",
-    enabledByDefault: true,
-    aiEnabled: true,
-    flags: [],
-  },
-  "power-of5": {
-    key: "power-of5",
-    category: "metrics",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-  "vote-goal": {
-    key: "vote-goal",
-    category: "metrics",
-    enabledByDefault: true,
-    aiEnabled: false,
-    flags: [],
-  },
-} as const;
-
-export default featureRegistry;
+type FeatureDefinition = {
+    key: string
+    category?: string
+    enabledByDefault?: boolean
+    aiEnabled?: boolean
+    flags?: readonly string[]
+  }
+  
+  const registry = new Map<string, FeatureDefinition>()
+  
+  export const FeatureRegistry = {
+    register(feature: FeatureDefinition) {
+      registry.set(feature.key, feature)
+    },
+  
+    enable(key: string) {
+      const current = registry.get(key)
+      if (!current) {
+        registry.set(key, {
+          key,
+          enabledByDefault: true,
+          flags: []
+        })
+        return
+      }
+  
+      registry.set(key, {
+        ...current,
+        enabledByDefault: true
+      })
+    },
+  
+    get(key: string): FeatureDefinition | undefined {
+      return registry.get(key)
+    },
+  
+    getAll(): FeatureDefinition[] {
+      return Array.from(registry.values())
+    }
+  }

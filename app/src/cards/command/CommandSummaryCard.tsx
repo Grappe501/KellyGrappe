@@ -1,211 +1,108 @@
-/* app/src/modules/dashboard/WarRoomDashboardPage.tsx
-   War Room Command Console
-*/
+import React from "react"
 
-import React, { useEffect, useState } from "react"
-
-import Container from "@components/Container"
-
-import CommandSearchCard from "./components/CommandSearchCard"
-import VoteGoalCard from "./components/VoteGoalCard"
-import ContactsCard from "./components/ContactsCard"
-import FollowUpsCard from "./components/FollowUpsCard"
-import PowerOf5Card from "./components/PowerOf5Card"
-import FollowUpBreakdownCard from "./components/FollowUpBreakdownCard"
-import MessagingCenterCard from "./components/MessagingCenterCard"
-import CommandSummaryCard from "./components/CommandSummaryCard"
-
-import { listContacts } from "@services/contacts.service"
-import { listLiveFollowUps } from "@services/followups.service"
-
-import type { LiveFollowUp } from "@db/contactsDb.types"
-
-/* ---------------- CONFIG ---------------- */
-
-const DEFAULT_VOTE_GOAL = 45000
-const REFRESH_INTERVAL = 10000
-
-/* ---------------- TYPES ---------------- */
+import { Card, CardHeader, CardContent } from "@components/Card"
 
 type DashboardMetrics = {
-
-  contacts:number
-
-  followups:{
-    new:number
-    inProgress:number
-    completed:number
-    archived:number
+  contacts: number
+  followups: {
+    new: number
+    inProgress: number
+    completed: number
+    archived: number
   }
-
-  voteCoverage:number
-
+  voteCoverage: number
 }
 
-/* ---------------- METRIC LOADER ---------------- */
-
-async function loadMetrics():Promise<DashboardMetrics>{
-
-  const contacts = await listContacts().catch(()=>[])
-
-  const followups =
-    (await listLiveFollowUps().catch(()=>[])) as LiveFollowUp[]
-
-  const newFU =
-    followups.filter(f=>f.followUpStatus==="NEW").length
-
-  const inProgressFU =
-    followups.filter(f=>f.followUpStatus==="IN_PROGRESS").length
-
-  const completedFU =
-    followups.filter(f=>f.followUpStatus==="COMPLETED").length
-
-  const archivedFU =
-    followups.filter(f=>f.archived===true).length
-
-  const coverage =
-    Math.round(
-      (contacts.length/DEFAULT_VOTE_GOAL)*100
-    )
-
-  return{
-
-    contacts:contacts.length,
-
-    followups:{
-      new:newFU,
-      inProgress:inProgressFU,
-      completed:completedFU,
-      archived:archivedFU
-    },
-
-    voteCoverage:coverage
-
-  }
-
+type CommandSummaryCardProps = {
+  metrics?: DashboardMetrics
 }
 
-/* ---------------- PAGE ---------------- */
+export default function CommandSummaryCard({
+  metrics,
+}: CommandSummaryCardProps) {
+  const contacts = metrics?.contacts ?? 0
+  const newFollowUps = metrics?.followups?.new ?? 0
+  const inProgress = metrics?.followups?.inProgress ?? 0
+  const completed = metrics?.followups?.completed ?? 0
+  const archived = metrics?.followups?.archived ?? 0
+  const coverage = metrics?.voteCoverage ?? 0
 
-export default function WarRoomDashboardPage(){
+  const activeFollowUps = newFollowUps + inProgress
 
-  const [metrics,setMetrics] =
-    useState<DashboardMetrics|null>(null)
+  let summaryTone = "Stable"
+  let summaryClass = "text-green-600"
 
-  const [lastRefresh,setLastRefresh] =
-    useState<number>(Date.now())
-
-  async function refresh(){
-
-    const m = await loadMetrics()
-
-    setMetrics(m)
-
-    setLastRefresh(Date.now())
-
+  if (activeFollowUps >= 25 || coverage < 25) {
+    summaryTone = "Attention Needed"
+    summaryClass = "text-amber-600"
   }
 
-  useEffect(()=>{
-
-    refresh()
-
-    const interval =
-      setInterval(refresh,REFRESH_INTERVAL)
-
-    return()=>clearInterval(interval)
-
-  },[])
-
-  if(!metrics){
-
-    return(
-      <Container>
-        <div className="p-6 text-sm text-slate-600">
-          Loading War Room...
-        </div>
-      </Container>
-    )
-
+  if (activeFollowUps >= 50 || coverage < 10) {
+    summaryTone = "Critical"
+    summaryClass = "text-red-600"
   }
 
-  return(
+  return (
+    <Card>
+      <CardHeader
+        title="Command Summary"
+        subtitle="Topline campaign operating picture"
+      />
 
-    <Container>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded border p-3">
+            <div>
+              <div className="text-xs text-slate-500">System Status</div>
+              <div className={`text-lg font-bold ${summaryClass}`}>
+                {summaryTone}
+              </div>
+            </div>
 
-      <div className="space-y-8 p-6">
-
-        {/* HEADER */}
-
-        <div className="flex items-center justify-between">
-
-          <div>
-
-            <h1 className="text-3xl font-bold text-slate-900">
-              Campaign War Room
-            </h1>
-
-            <p className="text-sm text-slate-500">
-              Updated {new Date(lastRefresh).toLocaleTimeString()}
-            </p>
-
+            <div className="text-right">
+              <div className="text-xs text-slate-500">Vote Coverage</div>
+              <div className="text-xl font-bold text-slate-900">
+                {coverage}%
+              </div>
+            </div>
           </div>
 
-          <button
-            onClick={refresh}
-            className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded"
-          >
-            Refresh
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded border p-3">
+              <div className="text-xs text-slate-500">Contacts</div>
+              <div className="text-2xl font-bold text-slate-900">
+                {contacts.toLocaleString()}
+              </div>
+            </div>
 
+            <div className="rounded border p-3">
+              <div className="text-xs text-slate-500">Active Follow-Ups</div>
+              <div className="text-2xl font-bold text-slate-900">
+                {activeFollowUps.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="rounded border p-3">
+              <div className="text-xs text-slate-500">Completed</div>
+              <div className="text-2xl font-bold text-slate-900">
+                {completed.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="rounded border p-3">
+              <div className="text-xs text-slate-500">Archived</div>
+              <div className="text-2xl font-bold text-slate-900">
+                {archived.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded bg-slate-50 p-3 text-xs text-slate-600">
+            Prioritize new and in-progress follow-ups first, then keep raising
+            vote coverage through additional contact capture and voter matching.
+          </div>
         </div>
-
-        {/* COMMAND SEARCH */}
-
-        <CommandSearchCard />
-
-        {/* METRICS ROW */}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-          <VoteGoalCard
-            coverage={metrics.voteCoverage}
-          />
-
-          <ContactsCard
-            contacts={metrics.contacts}
-          />
-
-          <FollowUpsCard
-            newCount={metrics.followups.new}
-            inProgress={metrics.followups.inProgress}
-          />
-
-          <PowerOf5Card />
-
-        </div>
-
-        {/* OPERATIONS ROW */}
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-          <FollowUpBreakdownCard
-            data={metrics.followups}
-          />
-
-          <CommandSummaryCard
-            metrics={metrics}
-          />
-
-        </div>
-
-        {/* MESSAGING */}
-
-        <MessagingCenterCard />
-
-      </div>
-
-    </Container>
-
+      </CardContent>
+    </Card>
   )
-
 }

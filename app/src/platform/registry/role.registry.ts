@@ -1,24 +1,21 @@
-export const roleRegistry = {
-  "admin": {
-    key: "admin",
-    capabilities: ["command-search", "contacts", "follow-up-breakdown", "follow-ups", "power-of5", "vote-goal"],
-    dashboards: ["communications", "data-intelligence", "field-operations", "fundraising", "war-room"],
-  },
-  "data": {
-    key: "data",
-    capabilities: ["command-summary", "messaging-center"],
-    dashboards: ["communications", "war-room"],
-  },
-  "operations": {
-    key: "operations",
-    capabilities: ["command-search", "command-summary", "contacts", "follow-up-breakdown", "follow-ups", "power-of5", "vote-goal"],
-    dashboards: ["communications", "data-intelligence", "field-operations", "fundraising", "war-room"],
-  },
-  "volunteer": {
-    key: "volunteer",
-    capabilities: ["action-queue", "messaging-center"],
-    dashboards: ["communications", "war-room"],
-  },
-} as const;
-
-export default roleRegistry;
+type RoleDefinition = {
+    key: string
+    capabilities?: readonly string[]
+    dashboards?: readonly string[]
+  }
+  
+  const registry = new Map<string, RoleDefinition>()
+  
+  export const RoleRegistry = {
+    register(role: RoleDefinition) {
+      registry.set(role.key, role)
+    },
+  
+    get(key: string): RoleDefinition | undefined {
+      return registry.get(key)
+    },
+  
+    getAll(): RoleDefinition[] {
+      return Array.from(registry.values())
+    }
+  }
