@@ -102,13 +102,18 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
     throw new Error("Workspace context missing. Intake blocked.");
   }
 
+  /* Organization context optional but recommended */
+
+  if (!organizationId) {
+    console.warn("Organization context missing during intake.");
+  }
+
   const sanitized = sanitizeTenantInput(form);
 
   const params: ProcessIntakeParams = {
     originType: source as any,
     rawPayload: form,
 
-    organizationId,
     submittedBy: user?.id,
 
     contact: {
