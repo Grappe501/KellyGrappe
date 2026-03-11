@@ -1,6 +1,6 @@
 import React from "react";
-import Container from "@components/Container";
-import { Card, CardHeader, CardContent } from "@components/Card";
+import Container from "../../shared/components/Container";
+import { Card, CardHeader, CardContent } from "../../shared/components/Card";
 
 export default function TeamSignupPage() {
   return (

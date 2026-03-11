@@ -1,181 +1,90 @@
-// app/src/App.tsx
+import {
+  openDb,
+  reqToPromise,
+  txDone,
+  uuid,
+  nowIso,
+  STORE_CONTACT_RELATIONSHIPS
+} from "../contactsDb.core";
 
-import React, {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
-import { Routes, Route } from "react-router-dom";
+import type {
+  ContactRelationship,
+  ContactRelationshipType
+} from "../contactsDb";
 
-import { syncPendingFollowUps } from "./shared/utils/syncEngine";
+export type { ContactRelationship, ContactRelationshipType };
 
-export const ROUTES = {
-  ROOT: "/",
-  EVENT_REQUEST: "/event-request",
-  CONTACT_IMPORT: "/contact-import",
-  TEAM_SIGNUP: "/team-signup",
-  LIVE_CONTACT: "/live-contact",
-  LIVE_CONTACTS: "/live-contacts",
-  CONTACTS: "/contacts",
-  CONTACT_PROFILE: "/contacts/:id",
-  VOTER_IMPORT: "/voter-import",
-  BUSINESS_CARD_SCAN: "/business-card-scan",
-  THANK_YOU: "/thank-you",
-  DASHBOARD: "/dashboard",
-  ORGANIZER_TREE: "/organizer-tree",
-} as const;
+export async function linkContacts(params: {
+  fromContactId: string;
+  toContactId: string;
+  relationshipType: ContactRelationshipType;
+}): Promise<ContactRelationship> {
 
-export type AppRouteKey = keyof typeof ROUTES;
+  const db = await openDb();
 
-const SYNC_INTERVAL_MS = 15_000;
+  const relationship: ContactRelationship = {
+    id: uuid(),
+    createdAt: nowIso(),
+    updatedAt: undefined,
+    fromContactId: params.fromContactId,
+    toContactId: params.toContactId,
+    relationshipType: params.relationshipType
+  };
 
-const LandingPage = React.lazy(() => import("./pages/LandingPage"));
-const EventRequestPage = React.lazy(
-  () => import("./modules/eventRequests/EventRequestPage")
-);
-const ContactImportPage = React.lazy(
-  () => import("./modules/CONTACT_IMPORT/ContactImportPage")
-);
-const TeamSignupPage = React.lazy(
-  () => import("./modules/teamSignup/TeamSignupPage")
-);
-const ThankYouPage = React.lazy(() => import("./pages/ThankYouPage"));
-const LiveContactPage = React.lazy(
-  () => import("./modules/liveContact/LiveContactPage")
-);
-const LiveContactsListPage = React.lazy(
-  () => import("./modules/liveContact/LiveContactsListPage")
-);
-const ContactsDirectoryPage = React.lazy(
-  () => import("./modules/contacts/ContactsDirectoryPage")
-);
-const ContactProfilePage = React.lazy(
-  () => import("./modules/contacts/ContactProfilePage")
-);
-const VoterImportPage = React.lazy(
-  () => import("./modules/voterImport/VoterImportPage")
-);
-const BusinessCardScanPage = React.lazy(
-  () => import("./modules/businessCardScan/BusinessCardScanPage")
-);
-const WarRoomDashboardPage = React.lazy(
-  () => import("./modules/dashboard/WarRoomDashboardPage")
-);
-const OrganizerTreePage = React.lazy(
-  () => import("./modules/organizerTree/OrganizerTreePage")
-);
-const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
-const DevDebugOverlay = React.lazy(
-  () => import("./shared/components/DevDebugOverlay")
-);
+  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readwrite");
+  const store = tx.objectStore(STORE_CONTACT_RELATIONSHIPS);
 
-function PageLoader() {
-  return <div className="p-6 text-sm text-slate-600">Loading…</div>;
+  try {
+
+    await reqToPromise(store.add(relationship));
+
+    await txDone(tx);
+
+    return relationship;
+
+  } catch (e: unknown) {
+
+    await txDone(tx).catch(() => {});
+
+    const message =
+      e instanceof Error
+        ? e.message
+        : "Failed to create relationship.";
+
+    throw new Error(message);
+  }
 }
 
-type AppRoute = {
-  path: string;
-  element: React.ReactNode;
-};
+export async function listContactRelationships(
+  contactId: string
+): Promise<ContactRelationship[]> {
 
-export default function App() {
-  const syncInProgressRef = useRef(false);
+  const db = await openDb();
 
-  const runSync = useCallback(async (source: string) => {
-    if (syncInProgressRef.current) return;
+  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readonly");
+  const store = tx.objectStore(STORE_CONTACT_RELATIONSHIPS);
 
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      return;
-    }
+  try {
 
-    try {
-      syncInProgressRef.current = true;
+    const all = await reqToPromise(store.getAll()) as ContactRelationship[];
 
-      window.dispatchEvent(
-        new CustomEvent("sync:started", { detail: { source } })
-      );
+    await txDone(tx);
 
-      await syncPendingFollowUps();
+    return (all ?? []).filter(
+      (r) =>
+        r.fromContactId === contactId ||
+        r.toContactId === contactId
+    );
 
-      window.dispatchEvent(
-        new CustomEvent("sync:completed", { detail: { source } })
-      );
-    } catch (err) {
-      console.error(`Sync failed (${source})`, err);
+  } catch (e: unknown) {
 
-      window.dispatchEvent(
-        new CustomEvent("sync:error", {
-          detail: { source, error: err },
-        })
-      );
-    } finally {
-      syncInProgressRef.current = false;
-    }
-  }, []);
+    await txDone(tx).catch(() => {});
 
-  useEffect(() => {
-    runSync("initial");
+    const message =
+      e instanceof Error
+        ? e.message
+        : "Failed to list relationships.";
 
-    const interval = window.setInterval(() => {
-      runSync("interval");
-    }, SYNC_INTERVAL_MS);
-
-    function handleOnline() {
-      runSync("online");
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        runSync("visible");
-      }
-    }
-
-    function handleFocus() {
-      runSync("focus");
-    }
-
-    window.addEventListener("online", handleOnline);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("online", handleOnline);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [runSync]);
-
-  const routes: AppRoute[] = useMemo(
-    () => [
-      { path: ROUTES.ROOT, element: <LandingPage /> },
-      { path: ROUTES.EVENT_REQUEST, element: <EventRequestPage /> },
-      { path: ROUTES.CONTACT_IMPORT, element: <ContactImportPage /> },
-      { path: ROUTES.TEAM_SIGNUP, element: <TeamSignupPage /> },
-      { path: ROUTES.LIVE_CONTACT, element: <LiveContactPage /> },
-      { path: ROUTES.LIVE_CONTACTS, element: <LiveContactsListPage /> },
-      { path: ROUTES.CONTACTS, element: <ContactsDirectoryPage /> },
-      { path: ROUTES.CONTACT_PROFILE, element: <ContactProfilePage /> },
-      { path: ROUTES.VOTER_IMPORT, element: <VoterImportPage /> },
-      { path: ROUTES.BUSINESS_CARD_SCAN, element: <BusinessCardScanPage /> },
-      { path: ROUTES.THANK_YOU, element: <ThankYouPage /> },
-      { path: ROUTES.DASHBOARD, element: <WarRoomDashboardPage /> },
-      { path: ROUTES.ORGANIZER_TREE, element: <OrganizerTreePage /> },
-      { path: "*", element: <NotFoundPage /> },
-    ],
-    []
-  );
-
-  return (
-    <Suspense fallback={<PageLoader />}>
-      {import.meta.env.DEV ? <DevDebugOverlay /> : null}
-      <Routes>
-        {routes.map((r) => (
-          <Route key={r.path} path={r.path} element={r.element} />
-        ))}
-      </Routes>
-    </Suspense>
-  );
+    throw new Error(message);
+  }
 }

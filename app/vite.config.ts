@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import path from "path";
 
 export default defineConfig({
   plugins: [
@@ -89,6 +90,23 @@ export default defineConfig({
       }
     })
   ],
+
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@components": path.resolve(__dirname, "./src/shared/components"),
+      "@shared": path.resolve(__dirname, "./src/shared"),
+      "@cards": path.resolve(__dirname, "./src/cards"),
+      "@modules": path.resolve(__dirname, "./src/modules"),
+      "@platform": path.resolve(__dirname, "./src/platform"),
+      "@services": path.resolve(__dirname, "./src/shared/utils/db/services"),
+      "@db": path.resolve(__dirname, "./src/shared/utils/db"),
+      "@pages": path.resolve(__dirname, "./src/pages"),
+      "@dashboards": path.resolve(__dirname, "./src/dashboards"),
+      "@integrations": path.resolve(__dirname, "./src/integrations"),
+      "@ai": path.resolve(__dirname, "./src/ai")
+    }
+  },
 
   build: {
     target: "esnext",
