@@ -1,37 +1,20 @@
-import { CardRegistry } from "../registry";
-import type {
-  CardCategory,
-  DashboardTemplate,
-  DashboardCardInstance
-} from "@cards/types";
+import { CardRegistry } from "@platform/registry"
+import type { CardCategory, DashboardCardInstance } from "@cards/types"
 
-export function generateDashboardFromCategories(
-  key: string,
-  title: string,
-  categories: CardCategory[]
-): DashboardTemplate {
-  const cards = CardRegistry.getAll().filter((card) =>
-    categories.includes(card.category)
-  );
+export function generateDashboard(category?: CardCategory) {
+  const cards = CardRegistry.getAll()
 
-  const instances: DashboardCardInstance[] = cards.map((card, index) => ({
+  const filtered = category
+    ? cards.filter((card) => card.category === category)
+    : cards
+
+  return filtered.map((card, index): DashboardCardInstance => ({
     id: `${card.key}-${index + 1}`,
     cardKey: card.key,
+    visible: true,
     placement: {
-      x: 0,
-      y: index,
-      w: card.defaultWidth,
+      w: card.defaultWidth === "full" ? 12 : Number(card.defaultWidth),
       h: card.defaultHeight ?? "md"
     }
-  }));
-
-  return {
-    key,
-    title,
-    category: "custom",
-    version: 1,
-    aiEnabled: true,
-    defaultLayoutMode: "grid",
-    cards: instances
-  };
+  }))
 }

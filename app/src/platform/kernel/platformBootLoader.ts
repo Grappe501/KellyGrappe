@@ -1,10 +1,11 @@
-import cardRegistry from "@cards/registry"
-import { warRoomTemplate } from "../../dashboards/templates/warRoom.template"
-import organizationRegistry from "../registry/organization.registry"
-import dashboardRegistry from "../registry/dashboard.registry"
-import featureRegistry from "../registry/feature.registry"
-import microroomRegistry from "../registry/microroom.registry"
-import roleRegistry from "../registry/role.registry"
+import { CardRegistry } from "@platform/registry/card.registry"
+import { OrganizationRegistry } from "@platform/registry/organization.registry"
+import { DashboardRegistry } from "@platform/registry/dashboard.registry"
+import { FeatureRegistry } from "@platform/registry/feature.registry"
+import { MicroRoomRegistry } from "@platform/registry/microroom.registry"
+import { RoleRegistry } from "@platform/registry/role.registry"
+
+import { warRoomTemplate } from "../../dashboard/templates/warRoom.template"
 
 export type PlatformBootContext = {
   organizationKey?: string
@@ -17,17 +18,17 @@ export type PlatformBootResult = {
     id: string
     cards: Array<{
       type: string
-      component: any
+      componentLoader: () => Promise<any>
       props?: Record<string, any>
     }>
   }
   registries: {
-    cards: typeof cardRegistry
-    organizations: typeof organizationRegistry
-    dashboards: typeof dashboardRegistry
-    features: typeof featureRegistry
-    microrooms: typeof microroomRegistry
-    roles: typeof roleRegistry
+    cards: typeof CardRegistry
+    organizations: typeof OrganizationRegistry
+    dashboards: typeof DashboardRegistry
+    features: typeof FeatureRegistry
+    microrooms: typeof MicroRoomRegistry
+    roles: typeof RoleRegistry
   }
 }
 
@@ -36,7 +37,7 @@ function resolveDashboardTemplate(dashboardId?: string) {
     return warRoomTemplate
   }
 
-  const registryMatch = (dashboardRegistry as any)?.[dashboardId]
+  const registryMatch = DashboardRegistry.get(dashboardId)
 
   if (registryMatch?.cards?.length) {
     return {
@@ -55,23 +56,27 @@ function normalizeCardType(type: string) {
 export function bootPlatform(
   context: PlatformBootContext = {}
 ): PlatformBootResult {
+
   const organizationKey = context.organizationKey || "campaign"
   const dashboardId = context.dashboardId || "warRoom"
 
   const organization =
-    (organizationRegistry as any)?.[organizationKey] || null
+    OrganizationRegistry.get(organizationKey) ?? null
 
   const template = resolveDashboardTemplate(dashboardId)
 
   const resolvedCards = (template.cards || []).map((card: any) => {
+
     const type = normalizeCardType(card.type)
-    const component = (cardRegistry as any)?.[type] || null
+
+    const definition = CardRegistry.get(type)
 
     return {
       type,
-      component,
+      componentLoader: definition?.componentLoader,
       props: card.props || {}
     }
+
   })
 
   return {
@@ -81,14 +86,15 @@ export function bootPlatform(
       cards: resolvedCards
     },
     registries: {
-      cards: cardRegistry,
-      organizations: organizationRegistry,
-      dashboards: dashboardRegistry,
-      features: featureRegistry,
-      microrooms: microroomRegistry,
-      roles: roleRegistry
+      cards: CardRegistry,
+      organizations: OrganizationRegistry,
+      dashboards: DashboardRegistry,
+      features: FeatureRegistry,
+      microrooms: MicroRoomRegistry,
+      roles: RoleRegistry
     }
   }
+
 }
 
 export default bootPlatform

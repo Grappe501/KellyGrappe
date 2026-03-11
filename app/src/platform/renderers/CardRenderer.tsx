@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from "react"
 
-import { CardRegistry } from "../registry"
+import { CardRegistry } from "@platform/registry"
 import type {
   DashboardCardInstance,
   DashboardRuntimeContext
@@ -15,7 +15,6 @@ export default function CardRenderer({
   instance,
   runtime
 }: CardRendererProps) {
-
   const definition = CardRegistry.get(instance.cardKey)
 
   if (!definition) {
