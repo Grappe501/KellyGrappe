@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import EventRequestPage from "../../modules/eventRequests/EventRequestPage";
-import CommandDashboardPage from "../../modules/admin/CommandDashboardPage";
+import CommandDashboardPage from "../../modules/admin/CommandDashboardPage.bak";
 
 export default function AppRouter() {
   return (
