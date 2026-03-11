@@ -108,7 +108,6 @@ export async function runProcessIntake(input: ProcessIntakeInput) {
     originType: source as any,
     rawPayload: form,
 
-    workspaceId,
     organizationId,
     submittedBy: user?.id,
 
