@@ -1,12 +1,19 @@
-import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-function App() {
+import LiveContactsPage from "@modules/liveContact/LiveContactsListPage";
+import TeamSignupPage from "@modules/teamSignup/TeamSignupPage";
+import ThankYouPage from "@modules/common/ThankYouPage";
+import NotFoundPage from "@modules/common/NotFoundPage";
+
+export default function App() {
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Kelly Grappe Campaign Operations Platform</h1>
-      <p>Platform boot successful.</p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LiveContactsPage />} />
+        <Route path="/team-signup" element={<TeamSignupPage />} />
+        <Route path="/thank-you" element={<ThankYouPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
