@@ -6,6 +6,22 @@ type Props = {
   dashboardId?: string
 }
 
+function MissingCard() {
+  return (
+    <div
+      style={{
+        border: "1px dashed #cbd5e1",
+        padding: "16px",
+        borderRadius: "8px",
+        background: "#f8fafc",
+        fontSize: "14px"
+      }}
+    >
+      Card not registered
+    </div>
+  )
+}
+
 export default function PlatformDashboard(props: Props) {
 
   const boot = bootPlatform({
@@ -27,7 +43,11 @@ export default function PlatformDashboard(props: Props) {
 
       {cards.map((card, i) => {
 
-        const Loader = React.lazy(card.componentLoader)
+        const loader =
+          card.componentLoader ??
+          (async () => ({ default: MissingCard }))
+
+        const Loader = React.lazy(loader)
 
         return (
           <Suspense key={i} fallback={<div>Loading...</div>}>
@@ -39,4 +59,5 @@ export default function PlatformDashboard(props: Props) {
 
     </div>
   )
+
 }
