@@ -5,12 +5,12 @@ import {
   uuid,
   nowIso,
   STORE_CONTACT_RELATIONSHIPS
-} from "../contactsDb.core";
+} from "@db/contactsDb.core";
 
 import type {
   ContactRelationship,
   ContactRelationshipType
-} from "../contactsDb";
+} from "@db/contactsDb";
 
 export type { ContactRelationship, ContactRelationshipType };
 
