@@ -1,90 +1,78 @@
-import {
-  openDb,
-  reqToPromise,
-  txDone,
-  uuid,
-  nowIso,
-  STORE_CONTACT_RELATIONSHIPS
-} from "../contactsDb.core";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
+import { VitePWA } from "vite-plugin-pwa"
+import path from "path"
 
-import type {
-  ContactRelationship,
-  ContactRelationshipType
-} from "../contactsDb";
+export default defineConfig({
+  plugins: [
+    react(),
 
-export type { ContactRelationship, ContactRelationshipType };
+    VitePWA({
+      registerType: "autoUpdate",
 
-export async function linkContacts(params: {
-  fromContactId: string;
-  toContactId: string;
-  relationshipType: ContactRelationshipType;
-}): Promise<ContactRelationship> {
+      includeAssets: [
+        "favicon.svg",
+        "robots.txt",
+        "apple-touch-icon.png"
+      ],
 
-  const db = await openDb();
+      manifest: {
+        name: "Kelly Grappe Campaign Operations",
+        short_name: "Grappe Ops",
+        description: "Campaign operations intelligence platform",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        scope: "/",
+        start_url: "/",
+        icons: [
+          {
+            src: "/pwa-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: "/pwa-512.png",
+            sizes: "512x512",
+            type: "image/png"
+          },
+          {
+            src: "/pwa-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable"
+          }
+        ]
+      }
+    })
+  ],
 
-  const relationship: ContactRelationship = {
-    id: uuid(),
-    createdAt: nowIso(),
-    updatedAt: undefined,
-    fromContactId: params.fromContactId,
-    toContactId: params.toContactId,
-    relationshipType: params.relationshipType
-  };
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@components": path.resolve(__dirname, "./src/shared/components"),
+      "@shared": path.resolve(__dirname, "./src/shared"),
+      "@modules": path.resolve(__dirname, "./src/modules"),
+      "@platform": path.resolve(__dirname, "./src/platform"),
+      "@cards": path.resolve(__dirname, "./src/cards"),
+      "@db": path.resolve(__dirname, "./src/shared/utils/db")
+    }
+  },
 
-  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readwrite");
-  const store = tx.objectStore(STORE_CONTACT_RELATIONSHIPS);
+  build: {
+    target: "esnext",
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          router: ["react-router-dom"]
+        }
+      }
+    }
+  },
 
-  try {
-
-    await reqToPromise(store.add(relationship));
-
-    await txDone(tx);
-
-    return relationship;
-
-  } catch (e: unknown) {
-
-    await txDone(tx).catch(() => {});
-
-    const message =
-      e instanceof Error
-        ? e.message
-        : "Failed to create relationship.";
-
-    throw new Error(message);
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-router-dom"]
   }
-}
-
-export async function listContactRelationships(
-  contactId: string
-): Promise<ContactRelationship[]> {
-
-  const db = await openDb();
-
-  const tx = db.transaction(STORE_CONTACT_RELATIONSHIPS, "readonly");
-  const store = tx.objectStore(STORE_CONTACT_RELATIONSHIPS);
-
-  try {
-
-    const all = await reqToPromise(store.getAll()) as ContactRelationship[];
-
-    await txDone(tx);
-
-    return (all ?? []).filter(
-      (r) =>
-        r.fromContactId === contactId ||
-        r.toContactId === contactId
-    );
-
-  } catch (e: unknown) {
-
-    await txDone(tx).catch(() => {});
-
-    const message =
-      e instanceof Error
-        ? e.message
-        : "Failed to list relationships.";
-
-    throw new Error(message);
-  }
-}
+})
