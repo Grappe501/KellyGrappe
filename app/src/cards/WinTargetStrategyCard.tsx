@@ -27,7 +27,6 @@ export default function WinTargetStrategyCard() {
 
     try {
 
-      // Pull voter data
       const { data: voters } = await supabase
         .from("voters")
         .select("county")
@@ -36,13 +35,12 @@ export default function WinTargetStrategyCard() {
 
       voters?.forEach((v: any) => {
 
-        const c = v.county?.toUpperCase() || "UNKNOWN"
+        const c = v?.county?.toUpperCase() || "UNKNOWN"
 
         countyCounts[c] = (countyCounts[c] || 0) + 1
 
       })
 
-      // Census population
       const censusResp = await fetch(
         "https://api.census.gov/data/2022/pep/population?get=NAME,POP&for=county:*&in=state:05"
       )
@@ -63,8 +61,8 @@ export default function WinTargetStrategyCard() {
 
       const countyStats: CountyStats[] = Object.keys(countyCounts).map(c => {
 
-        const registered = countyCounts[c]
-        const population = censusMap[c] || 0
+        const registered = countyCounts[c] ?? 0
+        const population = censusMap[c] ?? 0
 
         const turnout = Math.round(registered * 0.65)
 

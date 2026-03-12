@@ -7,13 +7,8 @@ import React, { useEffect, useState } from "react"
 import Container from "@components/Container"
 import { Card, CardHeader, CardContent } from "@components/Card"
 
-import {
-  listContactRelationships,
-} from "@services/relationships.service"
-
-import {
-  listContacts
-} from "@services/contacts.service"
+import { listContactRelationships } from "@services/relationships.service"
+import { listContacts } from "@services/contacts.service"
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
@@ -70,7 +65,12 @@ function buildTree(
 
   })
 
+  const visited = new Set<string>()
+
   function buildNode(contactId: string): TreeNode | null {
+
+    if (visited.has(contactId)) return null
+    visited.add(contactId)
 
     const contact = contactMap.get(contactId)
     if (!contact) return null
@@ -102,7 +102,7 @@ function TreeNodeView({ node }: { node: TreeNode }) {
     <div className="ml-4 border-l border-slate-200 pl-4 mt-3">
 
       <div className="font-medium text-sm">
-        {node.contact.fullName || "Unnamed"}
+        {node.contact.fullName ?? "Unnamed"}
       </div>
 
       {node.children.length > 0 && (
@@ -146,19 +146,37 @@ export default function OrganizerTreePage() {
 
   useEffect(() => {
 
+    let mounted = true
+
     async function loadContacts() {
 
-      const c = await listContacts()
+      try {
 
-      setContacts(c)
+        const result = await listContacts()
 
-      if (c.length > 0) {
-        setRootId(c[0].id)
+        if (!mounted) return
+
+        const safeContacts = Array.isArray(result) ? result : []
+
+        setContacts(safeContacts)
+
+        if (safeContacts.length > 0 && safeContacts[0]?.id) {
+          setRootId(safeContacts[0].id)
+        }
+
+      } catch (err) {
+
+        console.error("Failed to load contacts", err)
+
       }
 
     }
 
     loadContacts()
+
+    return () => {
+      mounted = false
+    }
 
   }, [])
 
@@ -170,20 +188,41 @@ export default function OrganizerTreePage() {
 
     if (!rootId) return
 
+    let mounted = true
+
     async function loadRelationships() {
 
-      setLoading(true)
+      try {
 
-      /* FIX: cast to string because we guard above */
-      const r = await listContactRelationships(rootId as string)
+        setLoading(true)
 
-      setRelationships(r)
+        const result = await listContactRelationships(rootId)
 
-      setLoading(false)
+        if (!mounted) return
+
+        const safeRelationships = Array.isArray(result) ? result : []
+
+        setRelationships(safeRelationships)
+
+      } catch (err) {
+
+        console.error("Failed to load relationships", err)
+
+      } finally {
+
+        if (mounted) {
+          setLoading(false)
+        }
+
+      }
 
     }
 
     loadRelationships()
+
+    return () => {
+      mounted = false
+    }
 
   }, [rootId])
 
@@ -239,7 +278,12 @@ export default function OrganizerTreePage() {
             <select
               className="border rounded p-2 w-full"
               value={rootId ?? ""}
-              onChange={(e) => setRootId(e.target.value)}
+              onChange={(e) => {
+
+                const value = e.target.value
+                setRootId(value || null)
+
+              }}
             >
 
               {contacts.map(c => (
@@ -248,7 +292,7 @@ export default function OrganizerTreePage() {
                   key={c.id}
                   value={c.id}
                 >
-                  {c.fullName || "Unnamed"}
+                  {c.fullName ?? "Unnamed"}
                 </option>
 
               ))}

@@ -10,7 +10,7 @@ import { registerDefaultFeatures } from "@platform/defaults/default.features"
 import { registerDefaultMicroRooms } from "@platform/defaults/default.microrooms"
 import { registerDefaultBrands } from "@platform/defaults/default.brands"
 
-import { registerWarRoomTemplate, warRoomTemplate } from "../../dashboards/templates/warRoom.template"
+import { registerWarRoomTemplate } from "@platform/dashboard/templates/warRoom.template"
 
 type RegistryBundle = {
   cards: typeof CardRegistry
@@ -95,7 +95,19 @@ function normalizeCardInput(card: DashboardCardLike): {
 }
 
 function getDefaultDashboardTemplate(): DashboardTemplateLike {
-  return warRoomTemplate
+  const registryMatch = DashboardRegistry.get("warRoom") as
+    | DashboardTemplateLike
+    | undefined
+
+  if (registryMatch) {
+    return registryMatch
+  }
+
+  return {
+    id: "warRoom",
+    key: "warRoom",
+    cards: []
+  }
 }
 
 function discoverAndRegisterModules() {
@@ -112,6 +124,7 @@ function discoverAndRegisterModules() {
     if (typeof mod.registerModule === "function") {
       try {
         mod.registerModule(REGISTRIES)
+        console.log(`[platform] module registered: ${path}`)
       } catch (error) {
         console.warn("[platform] module registration failed:", path, error)
       }
@@ -147,7 +160,9 @@ function registerPlatformDefaults() {
   }
 
   try {
-    registerWarRoomTemplate()
+    if (!DashboardRegistry.get("warRoom")) {
+      registerWarRoomTemplate()
+    }
   } catch (error) {
     console.warn("[platform] war room template registration failed:", error)
   }
@@ -156,10 +171,14 @@ function registerPlatformDefaults() {
 function ensurePlatformBooted() {
   if (platformBooted) return
 
+  console.log("🚀 Booting Civic Platform Kernel")
+
   registerPlatformDefaults()
   discoverAndRegisterModules()
 
   platformBooted = true
+
+  console.log("✅ Platform Kernel Boot Complete")
 }
 
 function resolveDashboardTemplate(dashboardId?: string): DashboardTemplateLike {
@@ -218,7 +237,7 @@ export function bootPlatform(
   return {
     organization,
     dashboard: {
-      id: safeString(template.id) || dashboardId,
+      id: safeString(template.id || template.key) || dashboardId,
       cards: resolvedCards
     },
     registries: REGISTRIES

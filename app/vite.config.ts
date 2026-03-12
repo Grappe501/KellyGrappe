@@ -25,6 +25,7 @@ export default defineConfig({
         display: "standalone",
         scope: "/",
         start_url: "/",
+
         icons: [
           {
             src: "/pwa-192.png",
@@ -50,18 +51,24 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+
       "@components": path.resolve(__dirname, "./src/shared/components"),
       "@shared": path.resolve(__dirname, "./src/shared"),
       "@modules": path.resolve(__dirname, "./src/modules"),
       "@platform": path.resolve(__dirname, "./src/platform"),
       "@cards": path.resolve(__dirname, "./src/cards"),
-      "@db": path.resolve(__dirname, "./src/shared/utils/db")
+
+      "@services": path.resolve(__dirname, "./src/shared/utils/db/services"),
+      "@db": path.resolve(__dirname, "./src/shared/utils/db"),
+      "@ai": path.resolve(__dirname, "./src/ai"),
+      "@integrations": path.resolve(__dirname, "./src/integrations")
     }
   },
 
   build: {
     target: "esnext",
     sourcemap: false,
+
     rollupOptions: {
       output: {
         manualChunks: {
@@ -73,6 +80,10 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: ["react", "react-dom", "react-router-dom"]
+    include: [
+      "react",
+      "react-dom",
+      "react-router-dom"
+    ]
   }
 })
