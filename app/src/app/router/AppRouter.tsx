@@ -1,39 +1,39 @@
-import { Routes, Route } from "react-router-dom";
+import React, { Suspense } from "react"
+import { Routes, Route } from "react-router-dom"
 
-import LandingPage from "../../pages/LandingPage";
-import ThankYouPage from "../../pages/ThankYouPage";
-import NotFoundPage from "../../pages/NotFoundPage";
+import LandingPage from "../../pages/LandingPage"
+import ThankYouPage from "../../pages/ThankYouPage"
+import NotFoundPage from "../../pages/NotFoundPage"
 
-import LiveContactsListPage from "../../modules/liveContact/LiveContactsListPage";
-import LiveContactPage from "../../modules/liveContact/LiveContactPage";
+import { getPlatformRoutes } from "./platformRoutes"
 
-import TeamSignupPage from "../../modules/teamSignup/TeamSignupPage";
-
-import ContactsDirectoryPage from "../../modules/contacts/ContactsDirectoryPage";
-import ContactProfilePage from "../../modules/contacts/ContactProfilePage";
-
-import WarRoomDashboardPage from "../../modules/dashboard/WarRoomDashboardPage";
+function RouteLoading() {
+  return <div style={{ padding: 24 }}>Loading…</div>
+}
 
 export default function AppRouter() {
+  const routes = getPlatformRoutes()
+
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoading />}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
 
-      <Route path="/" element={<LandingPage />} />
+        {routes.map((route) => {
+          const Component = React.lazy(route.componentLoader)
 
-      <Route path="/dashboard" element={<WarRoomDashboardPage />} />
+          return (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={<Component />}
+            />
+          )
+        })}
 
-      <Route path="/live" element={<LiveContactsListPage />} />
-      <Route path="/live/new" element={<LiveContactPage />} />
-
-      <Route path="/contacts" element={<ContactsDirectoryPage />} />
-      <Route path="/contacts/:id" element={<ContactProfilePage />} />
-
-      <Route path="/team-signup" element={<TeamSignupPage />} />
-
-      <Route path="/thank-you" element={<ThankYouPage />} />
-
-      <Route path="*" element={<NotFoundPage />} />
-
-    </Routes>
-  );
+        <Route path="/thank-you" element={<ThankYouPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
+  )
 }

@@ -5,7 +5,40 @@ import { FeatureRegistry } from "@platform/registry/feature.registry"
 import { MicroRoomRegistry } from "@platform/registry/microroom.registry"
 import { RoleRegistry } from "@platform/registry/role.registry"
 
-import { warRoomTemplate } from "../../dashboards/templates/warRoom.template"
+import { registerDefaultRoles } from "@platform/defaults/default.roles"
+import { registerDefaultFeatures } from "@platform/defaults/default.features"
+import { registerDefaultMicroRooms } from "@platform/defaults/default.microrooms"
+import { registerDefaultBrands } from "@platform/defaults/default.brands"
+
+import { registerWarRoomTemplate, warRoomTemplate } from "../../dashboards/templates/warRoom.template"
+
+type RegistryBundle = {
+  cards: typeof CardRegistry
+  organizations: typeof OrganizationRegistry
+  dashboards: typeof DashboardRegistry
+  features: typeof FeatureRegistry
+  microrooms: typeof MicroRoomRegistry
+  roles: typeof RoleRegistry
+}
+
+type RegisterModuleFn = (registries: RegistryBundle) => void
+
+type ModuleEntry = {
+  registerModule?: RegisterModuleFn
+}
+
+type DashboardCardLike =
+  | string
+  | {
+      type?: string
+      props?: Record<string, unknown>
+    }
+
+type DashboardTemplateLike = {
+  id?: string
+  key?: string
+  cards?: DashboardCardLike[]
+}
 
 export type PlatformBootContext = {
   organizationKey?: string
@@ -13,98 +46,188 @@ export type PlatformBootContext = {
 }
 
 export type PlatformBootResult = {
-  organization: any | null
+  organization: unknown | null
   dashboard: {
     id: string
     cards: Array<{
       type: string
       componentLoader?: () => Promise<any>
-      props?: Record<string, any>
+      props?: Record<string, unknown>
     }>
   }
-  registries: {
-    cards: typeof CardRegistry
-    organizations: typeof OrganizationRegistry
-    dashboards: typeof DashboardRegistry
-    features: typeof FeatureRegistry
-    microrooms: typeof MicroRoomRegistry
-    roles: typeof RoleRegistry
-  }
+  registries: RegistryBundle
 }
 
-function resolveDashboardTemplate(dashboardId?: string) {
+const REGISTRIES: RegistryBundle = {
+  cards: CardRegistry,
+  organizations: OrganizationRegistry,
+  dashboards: DashboardRegistry,
+  features: FeatureRegistry,
+  microrooms: MicroRoomRegistry,
+  roles: RoleRegistry
+}
 
-  if (!dashboardId || dashboardId === "warRoom") {
-    return warRoomTemplate
-  }
+let platformBooted = false
+let modulesDiscovered = false
 
-  const registryMatch = DashboardRegistry.get(dashboardId)
+function safeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
 
-  if (registryMatch?.cards?.length) {
+function normalizeCardType(type: unknown): string {
+  return safeString(type)
+}
+
+function normalizeCardInput(card: DashboardCardLike): {
+  type: string
+  props?: Record<string, unknown>
+} {
+  if (typeof card === "string") {
     return {
-      id: registryMatch.key || dashboardId,
-      cards: registryMatch.cards.map((card: any) => ({
-        type: typeof card === "string" ? card : card.type
-      }))
+      type: normalizeCardType(card)
     }
   }
 
+  return {
+    type: normalizeCardType(card?.type),
+    props: card?.props ?? {}
+  }
+}
+
+function getDefaultDashboardTemplate(): DashboardTemplateLike {
   return warRoomTemplate
 }
 
-function normalizeCardType(type: string) {
-  return (type || "").trim()
+function discoverAndRegisterModules() {
+  if (modulesDiscovered) return
+
+  const modules = import.meta.glob<ModuleEntry>(
+    "../../modules/**/index.{ts,tsx,js,jsx}",
+    { eager: true }
+  )
+
+  for (const [path, mod] of Object.entries(modules)) {
+    if (!mod) continue
+
+    if (typeof mod.registerModule === "function") {
+      try {
+        mod.registerModule(REGISTRIES)
+      } catch (error) {
+        console.warn("[platform] module registration failed:", path, error)
+      }
+    }
+  }
+
+  modulesDiscovered = true
+}
+
+function registerPlatformDefaults() {
+  try {
+    registerDefaultRoles()
+  } catch (error) {
+    console.warn("[platform] default role registration failed:", error)
+  }
+
+  try {
+    registerDefaultFeatures()
+  } catch (error) {
+    console.warn("[platform] default feature registration failed:", error)
+  }
+
+  try {
+    registerDefaultMicroRooms()
+  } catch (error) {
+    console.warn("[platform] default microroom registration failed:", error)
+  }
+
+  try {
+    registerDefaultBrands()
+  } catch (error) {
+    console.warn("[platform] default brand registration failed:", error)
+  }
+
+  try {
+    registerWarRoomTemplate()
+  } catch (error) {
+    console.warn("[platform] war room template registration failed:", error)
+  }
+}
+
+function ensurePlatformBooted() {
+  if (platformBooted) return
+
+  registerPlatformDefaults()
+  discoverAndRegisterModules()
+
+  platformBooted = true
+}
+
+function resolveDashboardTemplate(dashboardId?: string): DashboardTemplateLike {
+  const normalizedDashboardId = safeString(dashboardId)
+
+  if (!normalizedDashboardId || normalizedDashboardId === "warRoom") {
+    return getDefaultDashboardTemplate()
+  }
+
+  const registryMatch = DashboardRegistry.get(normalizedDashboardId) as
+    | DashboardTemplateLike
+    | undefined
+
+  if (registryMatch?.cards?.length) {
+    return {
+      id: safeString(registryMatch.key) || normalizedDashboardId,
+      cards: registryMatch.cards
+    }
+  }
+
+  return getDefaultDashboardTemplate()
+}
+
+function resolveOrganization(organizationKey?: string): unknown | null {
+  const normalizedOrganizationKey = safeString(organizationKey) || "campaign"
+  return OrganizationRegistry.get(normalizedOrganizationKey) ?? null
+}
+
+function resolveDashboardCards(template: DashboardTemplateLike) {
+  const rawCards = Array.isArray(template.cards) ? template.cards : []
+
+  return rawCards
+    .map(normalizeCardInput)
+    .filter((card) => Boolean(card.type))
+    .map((card) => {
+      const definition = CardRegistry.get(card.type)
+
+      return {
+        type: card.type,
+        componentLoader: definition?.componentLoader,
+        props: card.props ?? {}
+      }
+    })
 }
 
 export function bootPlatform(
   context: PlatformBootContext = {}
 ): PlatformBootResult {
+  ensurePlatformBooted()
 
-  const organizationKey = context.organizationKey || "campaign"
-  const dashboardId = context.dashboardId || "warRoom"
-
-  const organization =
-    OrganizationRegistry.get(organizationKey) ?? null
-
+  const dashboardId = safeString(context.dashboardId) || "warRoom"
+  const organization = resolveOrganization(context.organizationKey)
   const template = resolveDashboardTemplate(dashboardId)
-
-  const resolvedCards = (template.cards || []).map((card: any) => {
-
-    const type =
-      normalizeCardType(
-        typeof card === "string" ? card : card.type
-      )
-
-    const definition = CardRegistry.get(type)
-
-    return {
-      type,
-      componentLoader: definition?.componentLoader,
-      props: card?.props || {}
-    }
-
-  })
+  const resolvedCards = resolveDashboardCards(template)
 
   return {
-
     organization,
-
     dashboard: {
-      id: template.id || dashboardId,
+      id: safeString(template.id) || dashboardId,
       cards: resolvedCards
     },
-
-    registries: {
-      cards: CardRegistry,
-      organizations: OrganizationRegistry,
-      dashboards: DashboardRegistry,
-      features: FeatureRegistry,
-      microrooms: MicroRoomRegistry,
-      roles: RoleRegistry
-    }
-
+    registries: REGISTRIES
   }
+}
 
+export function resetPlatformBootStateForTesting() {
+  platformBooted = false
+  modulesDiscovered = false
 }
 
 export default bootPlatform
