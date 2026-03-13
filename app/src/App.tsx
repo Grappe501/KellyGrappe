@@ -1,13 +1,24 @@
-import { BrowserRouter } from "react-router-dom";
-import { bootPlatform } from "@platform/kernel/platformBootLoader";
-import AppRouter from "./app/router/AppRouter";
+import React from "react";
+import { Routes, Route } from "react-router-dom";
 
-bootPlatform();
+import WarRoomDashboardPage from "./modules/dashboard/WarRoomDashboardPage";
+
+/**
+ * IMPORTANT
+ * The BrowserRouter is already defined in main.tsx.
+ * This file must ONLY define Routes.
+ */
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRouter />
-    </BrowserRouter>
+    <Routes>
+
+      {/* Default landing */}
+      <Route path="/" element={<WarRoomDashboardPage />} />
+
+      {/* War Room */}
+      <Route path="/war-room" element={<WarRoomDashboardPage />} />
+
+    </Routes>
   );
 }

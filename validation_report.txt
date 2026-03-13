@@ -1,0 +1,7 @@
+Files checked: 12
+
+ERRORS
+------
+
+WARNINGS
+--------

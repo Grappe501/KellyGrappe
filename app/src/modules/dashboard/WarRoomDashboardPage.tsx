@@ -2,7 +2,7 @@
    War Room Command Console
 */
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 
 import Container from "@components/Container"
 
@@ -14,6 +14,10 @@ import PowerOf5Card from "@cards/metrics/PowerOf5Card"
 import FollowUpBreakdownCard from "@cards/metrics/FollowUpBreakdownCard"
 import MessagingCenterCard from "@cards/messaging/MessagingCenterCard"
 import CommandSummaryCard from "@cards/command/CommandSummaryCard"
+
+import CivicNetworkMap from "@modules/civic-identity/CivicNetworkMap"
+import CivicOpportunityPanel from "@modules/civic-identity/CivicOpportunityPanel"
+import GeographicCommunityExplorer from "@modules/civic-identity/GeographicCommunityExplorer"
 
 import { listContacts } from "@services/contacts.service"
 import { listLiveFollowUps } from "@services/followups.service"
@@ -77,6 +81,22 @@ async function loadMetrics(): Promise<DashboardMetrics> {
   }
 }
 
+/* ---------------- DEMO NETWORK GRAPH ---------------- */
+
+const demoGraph = {
+  nodes: [
+    { id: "you", name: "You", reputationScore: 80, organizerLevel: 3 },
+    { id: "alice", name: "Alice", reputationScore: 40 },
+    { id: "marcus", name: "Marcus", reputationScore: 55 },
+    { id: "elena", name: "Elena", reputationScore: 20 }
+  ],
+  edges: [
+    { from: "you", to: "alice" },
+    { from: "you", to: "marcus" },
+    { from: "alice", to: "elena" }
+  ]
+}
+
 /* ---------------- PAGE ---------------- */
 
 export default function WarRoomDashboardPage() {
@@ -86,14 +106,24 @@ export default function WarRoomDashboardPage() {
   const [lastRefresh, setLastRefresh] =
     useState<number>(Date.now())
 
-  async function refresh() {
-    const m = await loadMetrics()
+  const mounted = useRef(true)
 
-    setMetrics(m)
-    setLastRefresh(Date.now())
+  async function refresh() {
+    try {
+      const m = await loadMetrics()
+
+      if (!mounted.current) return
+
+      setMetrics(m)
+      setLastRefresh(Date.now())
+    } catch (err) {
+      console.error("War room refresh failed", err)
+    }
   }
 
   useEffect(() => {
+    mounted.current = true
+
     void refresh()
 
     const interval =
@@ -101,7 +131,10 @@ export default function WarRoomDashboardPage() {
         void refresh()
       }, REFRESH_INTERVAL)
 
-    return () => clearInterval(interval)
+    return () => {
+      mounted.current = false
+      clearInterval(interval)
+    }
   }, [])
 
   if (!metrics) {
@@ -116,9 +149,13 @@ export default function WarRoomDashboardPage() {
 
   return (
     <Container>
+
       <div className="space-y-8 p-6">
 
+        {/* ---------------- HEADER ---------------- */}
+
         <div className="flex items-center justify-between">
+
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
               Campaign War Room
@@ -135,11 +172,17 @@ export default function WarRoomDashboardPage() {
           >
             Refresh
           </button>
+
         </div>
+
+        {/* ---------------- COMMAND SEARCH ---------------- */}
 
         <CommandSearchCard />
 
+        {/* ---------------- METRICS ---------------- */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
           <VoteGoalCard
             coverage={metrics.voteCoverage}
           />
@@ -154,9 +197,13 @@ export default function WarRoomDashboardPage() {
           />
 
           <PowerOf5Card />
+
         </div>
 
+        {/* ---------------- ANALYTICS ---------------- */}
+
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
           <FollowUpBreakdownCard
             data={metrics.followups}
           />
@@ -164,10 +211,35 @@ export default function WarRoomDashboardPage() {
           <CommandSummaryCard
             metrics={metrics}
           />
+
         </div>
 
+        {/* ---------------- MESSAGING ---------------- */}
+
         <MessagingCenterCard />
+
+        {/* ---------------- CIVIC INTELLIGENCE ---------------- */}
+
+        <div className="space-y-6 pt-6">
+
+          <h2 className="text-xl font-semibold text-slate-900">
+            Civic Intelligence
+          </h2>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+            <CivicNetworkMap graph={demoGraph as any} />
+
+            <CivicOpportunityPanel />
+
+          </div>
+
+          <GeographicCommunityExplorer />
+
+        </div>
+
       </div>
+
     </Container>
   )
 }
