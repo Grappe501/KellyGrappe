@@ -12,6 +12,9 @@
   NPM_VERSION = "10"
   NPM_FLAGS = "--legacy-peer-deps --no-audit --no-fund"
 
+  # 🔥 CRITICAL FIX — allow Supabase public keys in frontend build
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL,SUPABASE_URL"
+
 # ----------------------------------------------------
 # Netlify Functions
 # ----------------------------------------------------
