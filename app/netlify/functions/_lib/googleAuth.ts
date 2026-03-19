@@ -1,23 +1,36 @@
-// app/netlify/functions/_lib/googleAuth.ts
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"
+
+// =========================
+// ENV VALIDATION
+// =========================
 
 function mustEnv(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
+  const v = process.env[name]
+  if (!v) {
+    throw new Error(`Missing required env var: ${name}`)
+  }
+  return v
 }
 
-export async function getGoogleAccessToken() {
-  const clientEmail = mustEnv("GOOGLE_CLIENT_EMAIL");
-  const privateKeyRaw = mustEnv("GOOGLE_PRIVATE_KEY");
+// =========================
+// ACCESS TOKEN GENERATOR
+// =========================
 
-  // Netlify typically stores private keys with 
- sequences
-  const privateKey = privateKeyRaw.replace(/\
-/g, "
-");
+export async function getGoogleAccessToken(): Promise<string> {
+  const clientEmail = mustEnv("GOOGLE_CLIENT_EMAIL")
+  const privateKeyRaw = mustEnv("GOOGLE_PRIVATE_KEY")
 
-  const now = Math.floor(Date.now() / 1000);
+  // =========================
+  // 🔥 CRITICAL FIX: HANDLE NETLIFY KEY FORMAT
+  // =========================
+  // Netlify stores multiline keys like:
+  // -----BEGIN PRIVATE KEY-----\nABC...\n-----END PRIVATE KEY-----
+
+  const privateKey = privateKeyRaw
+    .replace(/\\n/g, "\n")   // convert escaped newlines
+    .replace(/\\"/g, '"')   // fix escaped quotes (safety)
+
+  const now = Math.floor(Date.now() / 1000)
 
   const assertion = jwt.sign(
     {
@@ -29,30 +42,36 @@ export async function getGoogleAccessToken() {
     },
     privateKey,
     { algorithm: "RS256" }
-  );
+  )
+
+  // =========================
+  // TOKEN REQUEST
+  // =========================
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
-  });
+  })
 
-  const json = await res.json().catch(() => ({} as any));
+  const json = await res.json().catch(() => ({} as any))
 
   if (!res.ok) {
     const msg =
       json?.error_description ||
       json?.error ||
-      `Google token endpoint failed (${res.status}).`;
-    throw new Error(msg);
+      `Google token endpoint failed (${res.status})`
+    throw new Error(msg)
   }
 
   if (!json?.access_token) {
-    throw new Error("Google token response missing access_token.");
+    throw new Error("Google token response missing access_token.")
   }
 
-  return json.access_token as string;
+  return json.access_token as string
 }
