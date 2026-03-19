@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js"
-import { extractTextFromFile } from "../_lib/ai.text.extractor"
-import { extractEntities } from "../_lib/ai.entity.extractor"
+import { extractTextFromFile } from "./_lib/ai.text.extractor"
+import { extractEntities } from "./_lib/ai.entity.extractor"
 
 // =========================
-// ENV + CLIENT (SERVER ONLY)
+// ENV + CLIENT
 // =========================
 
 function mustEnv(name: string) {
@@ -29,7 +29,7 @@ interface IngestionFile {
 }
 
 // =========================
-// NETLIFY HANDLER
+// HANDLER
 // =========================
 
 export const handler = async (event: any) => {
@@ -64,7 +64,7 @@ export const handler = async (event: any) => {
 }
 
 // =========================
-// MAIN PROCESSOR
+// PROCESSOR
 // =========================
 
 async function processIngestionJob(jobId: string): Promise<void> {
@@ -73,18 +73,10 @@ async function processIngestionJob(jobId: string): Promise<void> {
 
   try {
 
-    // -----------------------
-    // Mark processing
-    // -----------------------
-
     await supabase
       .from("ingestion_jobs")
       .update({ processing_status: "processing" })
       .eq("id", jobId)
-
-    // -----------------------
-    // Load files
-    // -----------------------
 
     const { data: files, error: filesError } = await supabase
       .from("ingestion_files")
@@ -97,13 +89,9 @@ async function processIngestionJob(jobId: string): Promise<void> {
       return
     }
 
-    // -----------------------
-    // Process each file
-    // -----------------------
-
     for (const file of files as IngestionFile[]) {
 
-      console.log(`📄 Processing file: ${file.storage_path}`)
+      console.log(`📄 Processing: ${file.storage_path}`)
 
       const { data: storageFile, error: downloadError } =
         await supabase.storage
@@ -116,38 +104,18 @@ async function processIngestionJob(jobId: string): Promise<void> {
         return
       }
 
-      // -----------------------
-      // Extract text
-      // -----------------------
-
       const extraction = await extractTextFromFile(storageFile)
 
       if (!extraction?.text) {
-        console.warn("No text extracted")
         await markJobFailed(jobId, "text_extraction_failed")
         return
       }
 
       const text = extraction.text.slice(0, 500000)
 
-      console.log(`🧠 Text length: ${text.length}`)
-
-      // -----------------------
-      // Extract entities
-      // -----------------------
-
       const entityResult = await extractEntities(text)
 
-      if (!entityResult?.entities?.length) {
-        console.warn("No entities found")
-        continue
-      }
-
-      console.log(`🔍 Entities: ${entityResult.entities.length}`)
-
-      // -----------------------
-      // Insert entities
-      // -----------------------
+      if (!entityResult?.entities?.length) continue
 
       const rows = entityResult.entities.map((entity: any) => ({
         ingestion_job_id: jobId,
@@ -161,15 +129,10 @@ async function processIngestionJob(jobId: string): Promise<void> {
         .insert(rows)
 
       if (insertError) {
-        console.error("Insert failed:", insertError)
         await markJobFailed(jobId, "entity_insert_failed")
         return
       }
     }
-
-    // -----------------------
-    // Mark complete
-    // -----------------------
 
     await supabase
       .from("ingestion_jobs")
@@ -182,9 +145,7 @@ async function processIngestionJob(jobId: string): Promise<void> {
     console.log(`✅ Job complete: ${jobId}`)
 
   } catch (error) {
-
     console.error("Processor error:", error)
-
     await markJobFailed(jobId, "processor_exception")
   }
 }
@@ -194,7 +155,6 @@ async function processIngestionJob(jobId: string): Promise<void> {
 // =========================
 
 async function markJobFailed(jobId: string, reason: string) {
-
   try {
     await supabase
       .from("ingestion_jobs")
@@ -204,7 +164,6 @@ async function markJobFailed(jobId: string, reason: string) {
         completed_at: new Date().toISOString()
       })
       .eq("id", jobId)
-
   } catch (error) {
     console.error("Failed to mark job as failed:", error)
   }
