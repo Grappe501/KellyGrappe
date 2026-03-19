@@ -1,17 +1,25 @@
-import type { DashboardTemplate } from "@cards/types"
+// src/platform/registry/dashboard.registry.ts
 
-const registry = new Map<string, DashboardTemplate>()
+import { DashboardTemplate } from "../../cards/types"
+
+const registry: Record<string, DashboardTemplate> = {}
 
 export const DashboardRegistry = {
+
   register(template: DashboardTemplate) {
-    registry.set(template.key, template)
+    registry[template.key] = template
   },
 
   get(key: string): DashboardTemplate | undefined {
-    return registry.get(key)
+    return registry[key]
   },
 
   getAll(): DashboardTemplate[] {
-    return Array.from(registry.values())
+    return Object.values(registry)
+  },
+
+  has(key: string): boolean {
+    return key in registry
   }
+
 }

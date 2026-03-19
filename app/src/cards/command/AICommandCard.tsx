@@ -27,16 +27,18 @@ export default function AICommandCard() {
 
     try {
       const response = await executeAICommand(prompt)
+
       const rendered = [
         response.preview,
         response.data !== undefined ? "" : null,
         response.data !== undefined ? stringifyResult(response.data) : null
       ]
         .filter(Boolean)
-        .join("\n\n")
+        .join("\n")
 
       setResult(rendered)
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("AI command failed:", err)
       setResult("AI command failed.")
     } finally {
       setLoading(false)

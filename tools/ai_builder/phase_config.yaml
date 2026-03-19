@@ -1,0 +1,14 @@
+phase:
+  name: "build_stabilization"
+  description: "Fix TypeScript errors and stabilize build"
+
+targets:
+  - src/platform/ai/ai.runtime.ts
+  - src/platform/ui/cockpit/cockpit.telemetry.demo.ts
+  - src/platform/ui/cockpit/cockpit.telemetry.store.ts
+  - src/platform/ui/cockpit/useCockpitTelemetry.ts
+
+constraints:
+  - no new dependencies
+  - no UI redesign
+  - maintain existing architecture direction

@@ -11,8 +11,11 @@ export async function getGoogleAccessToken() {
   const clientEmail = mustEnv("GOOGLE_CLIENT_EMAIL");
   const privateKeyRaw = mustEnv("GOOGLE_PRIVATE_KEY");
 
-  // Netlify typically stores private keys with \n sequences
-  const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
+  // Netlify typically stores private keys with 
+ sequences
+  const privateKey = privateKeyRaw.replace(/\
+/g, "
+");
 
   const now = Math.floor(Date.now() / 1000);
 

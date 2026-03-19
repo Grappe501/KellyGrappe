@@ -1,42 +1,63 @@
-import type { Handler } from "@netlify/functions";
-import sgMail from "@sendgrid/mail";
+import type { Handler } from "@netlify/functions"
+import sgMail from "@sendgrid/mail"
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+const apiKey = process.env.SENDGRID_API_KEY
+const fromEmail = process.env.SENDGRID_FROM_EMAIL
+
+if (apiKey) {
+  sgMail.setApiKey(apiKey)
+}
 
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== "POST") {
       return {
         statusCode: 405,
-        body: "Method Not Allowed",
-      };
+        body: JSON.stringify({ error: "Method Not Allowed" })
+      }
     }
 
-    const data = JSON.parse(event.body || "{}");
+    if (!apiKey || !fromEmail) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Missing SendGrid configuration" })
+      }
+    }
 
-    const msg = {
-      to: data.to,
-      from: process.env.SENDGRID_FROM_EMAIL!,
-      subject: data.subject,
-      text: data.text,
-      html: data.html,
-    };
+    const data = JSON.parse(event.body || "{}")
+    const to = data?.to
+    const subject = data?.subject
+    const text = data?.text || data?.body || ""
+    const html = data?.html
 
-    await sgMail.send(msg);
+    if (!to || !subject || !text) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "to, subject, and text/body are required" })
+      }
+    }
+
+    await sgMail.send({
+      to,
+      from: fromEmail,
+      subject,
+      text,
+      html: html || undefined
+    })
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ success: true }),
-    };
+      body: JSON.stringify({ success: true })
+    }
   } catch (error: any) {
-    console.error(error);
+    console.error("send-email failed", error)
 
     return {
       statusCode: 500,
       body: JSON.stringify({
         error: "Email send failed",
-        details: error.message,
-      }),
-    };
+        details: error?.message || "Unknown error"
+      })
+    }
   }
-};
+}

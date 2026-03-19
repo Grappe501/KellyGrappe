@@ -113,9 +113,12 @@ export const handler = async (event: any) => {
     if (expectedAttendance) descriptionParts.push(`Expected Attendance: ${expectedAttendance}`);
     if (mediaExpected) descriptionParts.push(`Media Expected: ${mediaExpected}`);
     if (requestId) descriptionParts.push(`Request ID: ${requestId}`);
-    if (eventDescription) descriptionParts.push(`\nNotes:\n${eventDescription}`);
+    if (eventDescription) descriptionParts.push(`
+Notes:
+${eventDescription}`);
 
-    const description = descriptionParts.join("\n");
+    const description = descriptionParts.join("
+");
 
     const accessToken = await getGoogleAccessToken();
 

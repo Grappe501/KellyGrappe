@@ -18,10 +18,13 @@ if (!rows.length) {
   process.exit(0)
 }
 
-console.log("Columns detected:\n")
+console.log("Columns detected:
+")
 
 console.log(Object.keys(rows[0]))
 
-console.log("\nSample row:\n")
+console.log("
+Sample row:
+")
 
 console.log(rows[0])

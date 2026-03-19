@@ -186,7 +186,11 @@ export const handler: Handler = async (event) => {
       }
 
       await notifyDiscord(
-        `📢 Event Approved & Notified\nFollowUp: ${followupId}\nEmail: ${email || '—'}\nPhone: ${phone || '—'}\nTime: ${now}`
+        `📢 Event Approved & Notified
+FollowUp: ${followupId}
+Email: ${email || '—'}
+Phone: ${phone || '—'}
+Time: ${now}`
       );
 
       await logToSupabase({

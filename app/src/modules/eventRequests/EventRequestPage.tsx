@@ -188,14 +188,24 @@ export default function EventRequestPage() {
           metWhere: 'Event Request Form',
 
           conversationNotes:
-            `Event Request: ${safeTrim(form.eventTitle)}\n` +
-            `Type: ${form.eventType}\n` +
-            `Attendance: ${form.expectedAttendance}\n` +
-            `Requested Role: ${form.requestedRole}\n` +
-            `Media Expected: ${form.mediaExpected}\n` +
-            `Start: ${form.startDateTime}\n` +
-            `End: ${form.endDateTime}\n\n` +
-            `${safeTrim(form.eventDescription)}\n\n` +
+            `Event Request: ${safeTrim(form.eventTitle)}
+` +
+            `Type: ${form.eventType}
+` +
+            `Attendance: ${form.expectedAttendance}
+` +
+            `Requested Role: ${form.requestedRole}
+` +
+            `Media Expected: ${form.mediaExpected}
+` +
+            `Start: ${form.startDateTime}
+` +
+            `End: ${form.endDateTime}
+
+` +
+            `${safeTrim(form.eventDescription)}
+
+` +
             `${safeTrim(form.hostNotes)}`,
 
           followUpNeeded: true,

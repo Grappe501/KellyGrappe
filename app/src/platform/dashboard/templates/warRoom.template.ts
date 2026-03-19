@@ -1,5 +1,7 @@
-import { DashboardRegistry } from "@platform/registry";
-import type { DashboardTemplate } from "@cards/types";
+// app/src/platform/dashboard/templates/warRoom.template.ts
+
+import { DashboardRegistry } from "@platform/registry"
+import type { DashboardTemplate } from "@cards/types"
 
 const warRoomTemplate: DashboardTemplate = {
   key: "war_room",
@@ -11,18 +13,18 @@ const warRoomTemplate: DashboardTemplate = {
   defaultLayoutMode: "grid",
   cards: [
     {
-      id: "actionQueue-1",
-      cardKey: "actionQueue",
+      id: "action-queue-1",
+      cardKey: "action-queue",
       placement: { w: 6, h: "md" }
     },
     {
-      id: "commandSearch-1",
-      cardKey: "commandSearch",
+      id: "command-search-1",
+      cardKey: "command-search",
       placement: { w: 6, h: "md" }
     },
     {
-      id: "voteGoal-1",
-      cardKey: "voteGoal",
+      id: "vote-goal-1",
+      cardKey: "vote-goal",
       placement: { w: 3, h: "md" }
     },
     {
@@ -31,23 +33,25 @@ const warRoomTemplate: DashboardTemplate = {
       placement: { w: 3, h: "md" }
     },
     {
-      id: "followUps-1",
-      cardKey: "followUps",
+      id: "follow-ups-1",
+      cardKey: "follow-ups",
       placement: { w: 3, h: "md" }
     },
     {
-      id: "powerOf5-1",
-      cardKey: "powerOf5",
+      id: "power-of5-1",
+      cardKey: "power-of5",
       placement: { w: 3, h: "md" }
     },
     {
-      id: "messagingCenter-1",
-      cardKey: "messagingCenter",
+      id: "messaging-center-1",
+      cardKey: "messaging-center",
       placement: { w: 12, h: "lg" }
     }
   ]
-};
+}
 
 export function registerWarRoomTemplate() {
-  DashboardRegistry.register(warRoomTemplate);
+  DashboardRegistry.register(warRoomTemplate)
 }
+
+export { warRoomTemplate }
