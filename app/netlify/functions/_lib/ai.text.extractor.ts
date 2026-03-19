@@ -14,7 +14,7 @@
 
 import * as XLSX from "xlsx"
 import Tesseract from "tesseract.js"
-import { transcribeAudio } from "./ai.audio.transcriber"
+import { transcribeAudio } from "../../../src/platform/ai/ai.audio.transcriber"
 
 export type ExtractableFile = File | Blob | Buffer
 

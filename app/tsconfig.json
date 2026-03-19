@@ -89,7 +89,7 @@
     "../archive/moduleAutoLoader.ts",
     "../archive/PlatformBootstrap.ts",
     "../archive/warRoom.template.ts"
-  ],
+, "netlify/functions/_lib/ai.text.extractor.ts", "netlify/functions/_lib/ai.entity.extractor.ts"  ],
 
   "exclude": [
     "node_modules",

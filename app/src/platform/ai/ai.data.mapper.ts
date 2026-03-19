@@ -16,7 +16,7 @@ import type {
     CivicEntity,
     CivicEntityType,
     EntityExtractionResult
-  } from "./ai.entity.extractor"
+  } from "../../../netlify/functions/_lib/ai.entity.extractor"
   
   /* -------------------------------------------------------------------------- */
   /*                                   TYPES                                    */
