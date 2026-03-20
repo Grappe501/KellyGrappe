@@ -38,7 +38,6 @@ Roles operate inside organizations.
 
 Architecture flow:
 
-
 cards
 ↓
 dashboards
@@ -50,7 +49,6 @@ micro-rooms
 organizations
 ↓
 platform
-
 
 This allows the system to scale cleanly without creating massive monolithic pages.
 
@@ -121,7 +119,6 @@ Core capabilities include:
 
 # 3. Root Project Structure
 
-
 Kelly_Grappe_for_SOS_APP/
 
 .env
@@ -138,19 +135,15 @@ supabase/
 docs/
 build_directions/
 
-
 ---
 
 # 4. Application Architecture
 
 The operational system lives inside:
 
-
 app/
 
-
 Structure:
-
 
 app/
 
@@ -158,11 +151,9 @@ src/
 netlify/functions/
 dist/
 
-
 ---
 
 # 5. Source Architecture
-
 
 app/src/
 
@@ -180,7 +171,6 @@ microrooms/
 dashboards/
 admin/
 
-
 Each directory represents a **platform layer**.
 
 ---
@@ -191,12 +181,9 @@ Cards are the **core functional unit** of the platform.
 
 Cards live in:
 
-
 app/src/cards/
 
-
 Examples of cards:
-
 
 VoteGoalCard
 ContactsCard
@@ -207,18 +194,13 @@ CommandSearchCard
 MessagingCenterCard
 AICommandCard
 
-
 Cards are registered in:
-
 
 cards/registry.ts
 
-
 Cards must follow the shared contract in:
 
-
 cards/types.ts
-
 
 ---
 
@@ -228,7 +210,6 @@ Dashboards assemble cards into command environments.
 
 Example dashboards:
 
-
 WarRoomDashboard
 MessagingDashboard
 FundraisingDashboard
@@ -236,12 +217,9 @@ FieldDashboard
 VolunteerDashboard
 AdminDashboard
 
-
 Dashboards live in:
 
-
 app/src/dashboards/
-
 
 Dashboards should only arrange cards — not implement business logic.
 
@@ -253,12 +231,9 @@ Modules implement full workflows.
 
 Modules live in:
 
-
 app/src/modules/
 
-
 Current modules include:
-
 
 businessCardScan
 contacts
@@ -271,9 +246,7 @@ organizerTree
 teamSignup
 voterImport
 
-
 Modules usually contain:
-
 
 components/
 hooks/
@@ -281,28 +254,22 @@ services/
 types/
 utils/
 
-
 ---
 
 # 9. Shared Infrastructure
 
 Reusable infrastructure lives in:
 
-
 app/src/shared/
 
-
 This includes:
-
 
 shared/components/
 shared/utils/
 shared/utils/db/
 shared/utils/db/services/
 
-
 Important database services include:
-
 
 contacts.service.ts
 followups.service.ts
@@ -310,7 +277,6 @@ origins.service.ts
 media.service.ts
 relationships.service.ts
 voterMatching.service.ts
-
 
 ---
 
@@ -320,13 +286,11 @@ The current system uses IndexedDB for local storage.
 
 Database core files:
 
-
 shared/utils/db/
 
 contactsDb.core.ts
 contactsDb.ts
 contactsDb.types.ts
-
 
 Future support may include:
 
@@ -340,18 +304,14 @@ Future support may include:
 
 Server-side tasks run through Netlify functions.
 
-
 app/netlify/functions/
 
-
 Examples:
-
 
 scan-card.ts
 followup-ai.ts
 event-assist.ts
 ai-command.ts
-
 
 These functions handle:
 
@@ -368,18 +328,14 @@ The platform supports multiple organizations through themes.
 
 Themes live in:
 
-
 app/src/theme/
 
-
 Example themes:
-
 
 kelly_campaign
 naacp
 church_coalition
 student_movement
-
 
 Themes control:
 
@@ -398,17 +354,13 @@ AI tools assist with campaign operations.
 
 AI code lives in:
 
-
 app/src/ai/
 
-
 Examples:
-
 
 interactionLogger.ts
 modelRouter.ts
 promptRegistry.ts
-
 
 AI capabilities include:
 
@@ -427,12 +379,9 @@ Role dashboards define what users see.
 
 Roles live in:
 
-
 app/src/roles/
 
-
 Examples:
-
 
 candidate
 campaign_manager
@@ -442,19 +391,15 @@ precinct_captain
 volunteer
 admin
 
-
 ---
 
 # 15. Micro-Rooms
 
 Micro-rooms are specialized workspaces for focused operations.
 
-
 app/src/microrooms/
 
-
 Examples:
-
 
 precinct_room
 event_room
@@ -464,7 +409,6 @@ campus_room
 church_room
 petition_room
 
-
 Each micro-room loads a dashboard template.
 
 ---
@@ -473,12 +417,9 @@ Each micro-room loads a dashboard template.
 
 External integrations live in:
 
-
 app/src/integrations/
 
-
 Planned integrations include:
-
 
 Twilio
 SendGrid
@@ -486,7 +427,6 @@ GoodChange
 Social APIs
 Calendar systems
 Voter data
-
 
 ---
 
@@ -508,12 +448,10 @@ Avoid creating standalone pages.
 
 Four root documents govern the platform:
 
-
 MASTER_BUILD_PATH.md
 ARCHITECTURE_MAP.md
 DEVELOPER_RULES.md
 SYSTEM_OVERVIEW.md
-
 
 These files define:
 

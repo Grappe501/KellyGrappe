@@ -44,7 +44,6 @@ export function ContactIdentitySection(props: {
         </HelpText>
       </div>
 
-
       {/* NAME */}
       <div>
         <Label htmlFor="fullName">Name</Label>
@@ -57,7 +56,6 @@ export function ContactIdentitySection(props: {
           onChange={(e) => update("fullName", e.target.value)}
         />
       </div>
-
 
       {/* PHONE + EMAIL */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -80,7 +78,6 @@ export function ContactIdentitySection(props: {
           </HelpText>
         </div>
 
-
         {/* EMAIL */}
         <div>
           <Label htmlFor="email">Email</Label>
@@ -100,7 +97,6 @@ export function ContactIdentitySection(props: {
         </div>
 
       </div>
-
 
       {/* PERMISSION TO CONTACT */}
       <div className="pt-2 border-t border-slate-200">

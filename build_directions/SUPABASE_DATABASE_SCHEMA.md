@@ -2,8 +2,6 @@
 
 \# Supabase Database Schema – Phase 2 CRM Core
 
-
-
 \*\*Document Status:\*\* Foundational Schema Draft  
 
 \*\*Purpose:\*\* Define the relational database structure for Phase 2 CRM  
@@ -14,15 +12,9 @@
 
 \*\*Last Updated:\*\* (Update as we go)
 
-
-
 ---
 
-
-
 \# Design Philosophy
-
-
 
 1\. Submissions are immutable (raw intake log).
 
@@ -36,11 +28,7 @@
 
 6\. Keep schema normalized but practical for campaign speed.
 
-
-
 ---
-
-
 
 \# Core Architecture Overview
 
@@ -66,21 +54,11 @@ people ─── organizations ─── locations
 
 └── training\_records
 
-
-
-
-
 ---
-
-
 
 \# 1. AUTHENTICATION (Supabase Native)
 
-
-
 Supabase provides:
-
-
 
 \- auth.users (managed by Supabase)
 
@@ -88,23 +66,13 @@ Supabase provides:
 
 \- JWT-based authentication
 
-
-
 We extend this with a `profiles` table.
-
-
 
 ---
 
-
-
 \# 2. PROFILES (Campaign Users)
 
-
-
 Table: profiles
-
-
 
 | Column | Type | Notes |
 
@@ -118,25 +86,15 @@ Table: profiles
 
 | created\_at | timestamptz | default now() |
 
-
-
 Purpose:
 
 Controls dashboard permissions and internal access.
 
-
-
 ---
-
-
 
 \# 3. SUBMISSIONS (Immutable Intake Log)
 
-
-
 Table: submissions
-
-
 
 | Column | Type | Notes |
 
@@ -154,31 +112,19 @@ Table: submissions
 
 | processed | boolean | default false |
 
-
-
 Rules:
 
 \- Never update raw\_data.
 
 \- Only update processed flag.
 
-
-
 This ensures audit integrity.
-
-
 
 ---
 
-
-
 \# 4. PEOPLE (Core Contact Records)
 
-
-
 Table: people
-
-
 
 | Column | Type | Notes |
 
@@ -198,33 +144,21 @@ Table: people
 
 | updated\_at | timestamptz |
 
-
-
 Indexes:
 
 \- index on email
 
 \- index on phone
 
-
-
 Future:
 
 Add tags, engagement score, county, etc.
 
-
-
 ---
-
-
 
 \# 5. ORGANIZATIONS
 
-
-
 Table: organizations
-
-
 
 | Column | Type | Notes |
 
@@ -240,19 +174,11 @@ Table: organizations
 
 | created\_at | timestamptz |
 
-
-
 ---
-
-
 
 \# 6. LOCATIONS
 
-
-
 Table: locations
-
-
 
 | Column | Type | Notes |
 
@@ -276,25 +202,15 @@ Table: locations
 
 | created\_at | timestamptz |
 
-
-
 Future:
 
 Add PostGIS if turf mapping required.
 
-
-
 ---
-
-
 
 \# 7. EVENTS
 
-
-
 Table: events
-
-
 
 | Column | Type | Notes |
 
@@ -320,23 +236,13 @@ Table: events
 
 | created\_at | timestamptz |
 
-
-
 This table connects intake to real campaign scheduling.
-
-
 
 ---
 
-
-
 \# 8. TASKS
 
-
-
 Table: tasks
-
-
 
 | Column | Type | Notes |
 
@@ -364,25 +270,15 @@ Table: tasks
 
 | created\_at | timestamptz |
 
-
-
 Purpose:
 
 Creates workflow engine.
 
-
-
 ---
-
-
 
 \# 9. INTERACTIONS
 
-
-
 Table: interactions
-
-
 
 | Column | Type | Notes |
 
@@ -402,23 +298,13 @@ Table: interactions
 
 | created\_at | timestamptz |
 
-
-
 This powers canvassing + phone banking later.
-
-
 
 ---
 
-
-
 \# 10. SHIFTS
 
-
-
 Table: shifts
-
-
 
 | Column | Type | Notes |
 
@@ -440,23 +326,13 @@ Table: shifts
 
 | created\_at | timestamptz |
 
-
-
 Used for volunteer tracking and analytics.
-
-
 
 ---
 
-
-
 \# 11. DONATIONS
 
-
-
 Table: donations
-
-
 
 | Column | Type | Notes |
 
@@ -474,23 +350,13 @@ Table: donations
 
 | created\_at | timestamptz |
 
-
-
 Compliance integration would be handled separately.
-
-
 
 ---
 
-
-
 \# 12. TRAINING\_RECORDS
 
-
-
 Table: training\_records
-
-
 
 | Column | Type | Notes |
 
@@ -506,19 +372,11 @@ Table: training\_records
 
 | badge\_awarded | text |
 
-
-
 Supports long-term volunteer development.
-
-
 
 ---
 
-
-
 \# Relationships Summary
-
-
 
 \- submissions → events
 
@@ -536,69 +394,43 @@ Supports long-term volunteer development.
 
 \- profiles → tasks
 
-
-
 ---
-
-
 
 \# Row-Level Security Strategy (High-Level)
 
-
-
 Profiles Role-Based Access:
-
-
 
 Admin:
 
 \- Full access
 
-
-
 Manager:
 
 \- Full read/write except role assignment
-
-
 
 Scheduler:
 
 \- events + tasks only
 
-
-
 Captain:
 
 \- Only assigned volunteers + related tasks
-
-
 
 Volunteer:
 
 \- Only own shifts + tasks
 
-
-
 Public:
 
 \- No direct DB access
 
-
-
 ---
 
-
-
 \# Migration Plan from Phase 1
-
-
 
 Phase 1:
 
 Google Sheets + Calendar
-
-
 
 Phase 2:
 
@@ -610,19 +442,11 @@ Phase 2:
 
 \- Keep Sheet as backup initially
 
-
-
 Never remove submission logging until DB proven stable.
-
-
 
 ---
 
-
-
 \# Architectural Guardrails
-
-
 
 1\. Submissions are immutable.
 
@@ -636,15 +460,9 @@ Never remove submission logging until DB proven stable.
 
 6\. No business logic inside SQL triggers initially.
 
-
-
 ---
 
-
-
 \# Future Expansion Considerations
-
-
 
 \- PostGIS for turf mapping
 
@@ -658,19 +476,9 @@ Never remove submission logging until DB proven stable.
 
 \- Audit trail for record edits
 
-
-
 ---
-
-
 
 \# Change Log
 
-
-
 (Track schema updates here.)
-
-
-
-
 

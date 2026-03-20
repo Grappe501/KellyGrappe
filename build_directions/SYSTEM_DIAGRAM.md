@@ -2,8 +2,6 @@
 
 \# Campaign Operations Platform – System Diagram
 
-
-
 \*\*Document Status:\*\* Living Architecture Diagram  
 
 \*\*Purpose:\*\* Visual flow overview of how the system works now and how it scales  
@@ -12,15 +10,9 @@
 
 \*\*Last Updated:\*\* (Update as we go)
 
-
-
 ---
 
-
-
 \# 1. Phase 1 System Flow (Current Build)
-
-
 
 This is the lightweight intake engine.
 
@@ -66,13 +58,7 @@ POST /.netlify/functions/api/submit
 
 \[ Campaign Staff Inbox + Calendar ]
 
-
-
-
-
 \### What Exists in Phase 1
-
-
 
 \- Module-based forms
 
@@ -84,19 +70,11 @@ POST /.netlify/functions/api/submit
 
 \- Email = notification layer
 
-
-
 ---
-
-
 
 \# 2. Module Architecture (Expandable Intake Engine)
 
-
-
 Each feature follows the same structure:
-
-
 
 MODULE
 
@@ -108,13 +86,7 @@ MODULE
 
 └── actions.json (what happens after submit)
 
-
-
-
-
 All modules use:
-
-
 
 \[ Frontend Module ]
 
@@ -130,23 +102,13 @@ All modules use:
 
 \[ Action Pipeline ]
 
-
-
 This allows exponential expansion without rewriting backend logic.
-
-
 
 ---
 
-
-
 \# 3. Long-Term Architecture (Phase 2+ CRM Core)
 
-
-
 Once we introduce a database, the system expands:
-
-
 
 \[ Public Users ]
 
@@ -192,17 +154,9 @@ Events, etc.) Calendar, etc.)
 
 \[ Staff Dashboards + Volunteer Portal ]
 
-
-
-
-
 ---
 
-
-
 \# 4. Full Campaign CRM System (Mature State)
-
-
 
 &nbsp;                    ┌────────────────────┐
 
@@ -268,21 +222,11 @@ Events, etc.) Calendar, etc.)
 
 └──────────────────┘
 
-
-
-
-
 ---
-
-
 
 \# 5. Workflow Engine Concept
 
-
-
 Every submission follows this logic:
-
-
 
 Validate
 
@@ -306,13 +250,7 @@ Assign Tasks
 
 Track Status Pipeline
 
-
-
-
-
 This keeps:
-
-
 
 \- Intake separate from CRM data
 
@@ -322,19 +260,11 @@ This keeps:
 
 \- Work assignable and trackable
 
-
-
 ---
-
-
 
 \# 6. Volunteer \& Field Expansion Diagram
 
-
-
 Future Field Operations Layer:
-
-
 
 \[ Volunteer Login ]
 
@@ -362,13 +292,7 @@ Future Field Operations Layer:
 
 └── Log Interactions
 
-
-
-
-
 Field Logging Flow:
-
-
 
 \[ Volunteer Logs Contact ]
 
@@ -390,19 +314,9 @@ Field Logging Flow:
 
 \[ Trigger Follow-Up Task if Needed ]
 
-
-
-
-
 ---
 
-
-
 \# 7. Communications Engine (Future Automation Layer)
-
-
-
-
 
 Trigger Event (e.g., Event Confirmed)
 
@@ -422,17 +336,9 @@ Trigger Event (e.g., Event Confirmed)
 
 └── Tag Person Record
 
-
-
-
-
 ---
 
-
-
 \# 8. Data Evolution Path
-
-
 
 | Phase | Storage | Auth | Dashboards | Complexity |
 
@@ -446,19 +352,11 @@ Trigger Event (e.g., Event Confirmed)
 
 | Phase 4 | Automation + Field | Yes | Full Ops | Advanced |
 
-
-
 ---
-
-
 
 \# 9. Architectural Guardrails
 
-
-
 To avoid re-architecture mid-campaign:
-
-
 
 1\. Never bypass the Universal Submit API.
 
@@ -470,19 +368,11 @@ To avoid re-architecture mid-campaign:
 
 5\. Design new features as modules, not custom code blocks.
 
-
-
 ---
-
-
 
 \# 10. Strategic Summary
 
-
-
 We are building:
-
-
 
 A modular intake engine →  
 
@@ -490,11 +380,7 @@ that evolves into a CRM →
 
 that evolves into a full Campaign Operations Platform.
 
-
-
 This system is designed to:
-
-
 
 \- Start simple
 
@@ -506,51 +392,25 @@ This system is designed to:
 
 \- Enable exponential module growth
 
-
-
 ---
-
-
 
 \# Change Log
 
-
-
 (Add updates to architecture decisions here.)
-
-
 
 You now have:
 
-
-
 LONG\_TERM\_CAMPAIGN\_CRM\_ARCHITECTURE.md (strategy)
-
-
 
 SYSTEM\_DIAGRAM.md (visual flows)
 
-
-
 If you'd like next, we can create:
-
-
 
 MODULE\_ROADMAP.md (next 12 modules with priority order)
 
-
-
 DATA\_MODEL\_DRAFT.md (actual SQL table layout)
-
-
 
 Or VOLUNTEER\_ROLE\_ARCHITECTURE.md (permission hierarchy)
 
-
-
 You’re building this the right way.
-
-
-
-
 

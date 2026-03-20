@@ -25,8 +25,6 @@ import type {
 
 const FALLBACK_DASHBOARD_KEY = "war_room"
 
-
-
 /* -------------------------------------------------- */
 /* Utility helpers */
 /* -------------------------------------------------- */
@@ -44,8 +42,6 @@ function normalizeLookupKey(value: unknown): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value)
 }
-
-
 
 /* -------------------------------------------------- */
 /* Safe template conversion */
@@ -67,8 +63,6 @@ function asDashboardTemplate(value: unknown): DashboardTemplate | null {
   return value as unknown as DashboardTemplate
 }
 
-
-
 /* -------------------------------------------------- */
 /* Registry readers */
 /* -------------------------------------------------- */
@@ -85,8 +79,6 @@ function getAllDashboardTemplates(): DashboardTemplate[] {
     .filter((template): template is DashboardTemplate => !!template)
 }
 
-
-
 /* -------------------------------------------------- */
 /* Dashboard resolution */
 /* -------------------------------------------------- */
@@ -100,8 +92,6 @@ function resolveDashboardTemplate(
   const normalizedRequested = normalizeLookupKey(requestedKey)
 
   const templates = getAllDashboardTemplates()
-
-
 
   /* Direct lookup */
 
@@ -120,8 +110,6 @@ function resolveDashboardTemplate(
     }
 
   }
-
-
 
   /* Normalized lookup */
 
@@ -145,8 +133,6 @@ function resolveDashboardTemplate(
     warnings.push(`Dashboard template not found: ${requestedKey}`)
   }
 
-
-
   /* Fallback */
 
   const fallbackTemplate =
@@ -154,8 +140,6 @@ function resolveDashboardTemplate(
       (template) =>
         normalizeLookupKey(template.key) === normalizeLookupKey(FALLBACK_DASHBOARD_KEY)
     ) ?? templates[0]
-
-
 
   if (fallbackTemplate) {
 
@@ -166,8 +150,6 @@ function resolveDashboardTemplate(
     }
 
   }
-
-
 
   /* Last-resort fallback */
 
@@ -188,8 +170,6 @@ function resolveDashboardTemplate(
 
 }
 
-
-
 /* -------------------------------------------------- */
 /* Card registry helpers */
 /* -------------------------------------------------- */
@@ -208,8 +188,6 @@ function getAllCardDefinitions(): RuntimeCardDefinitionLike[] {
     )
 
 }
-
-
 
 function toComponentLoader(
   definition: RuntimeCardDefinitionLike | undefined
@@ -235,15 +213,11 @@ function toComponentLoader(
 
 }
 
-
-
 function resolveCardDefinition(
   cardKey: string
 ): { definition?: RuntimeCardDefinitionLike; warnings: string[] } {
 
   const warnings: string[] = []
-
-
 
   /* Direct lookup */
 
@@ -251,8 +225,6 @@ function resolveCardDefinition(
     typeof CardRegistry.get === "function"
       ? (CardRegistry.get(cardKey) as RuntimeCardDefinitionLike | undefined)
       : undefined
-
-
 
   if (directDefinition) {
 
@@ -266,8 +238,6 @@ function resolveCardDefinition(
 
   }
 
-
-
   /* Normalized lookup */
 
   const normalizedCardKey = normalizeLookupKey(cardKey)
@@ -277,8 +247,6 @@ function resolveCardDefinition(
       (definition) =>
         normalizeLookupKey(definition.key) === normalizedCardKey
     )
-
-
 
   if (normalizedMatch) {
 
@@ -296,15 +264,11 @@ function resolveCardDefinition(
 
   }
 
-
-
   warnings.push(`Card not registered: ${cardKey}`)
 
   return { warnings }
 
 }
-
-
 
 /* -------------------------------------------------- */
 /* Organization lookup */
@@ -324,8 +288,6 @@ function resolveOrganization(organizationId?: string): unknown | null {
 
 }
 
-
-
 /* -------------------------------------------------- */
 /* Context builders */
 /* -------------------------------------------------- */
@@ -339,8 +301,6 @@ function buildWorkspaceContext(
   }
 
 }
-
-
 
 function buildRuntimeContext(
   template: DashboardTemplate,
@@ -358,8 +318,6 @@ function buildRuntimeContext(
 
 }
 
-
-
 /* -------------------------------------------------- */
 /* Card resolution */
 /* -------------------------------------------------- */
@@ -374,8 +332,6 @@ function resolveDashboardCard(
 
   cardWarnings.push(...resolution.warnings)
 
-
-
   return {
 
     id: instance.id,
@@ -387,8 +343,6 @@ function resolveDashboardCard(
   }
 
 }
-
-
 
 /* -------------------------------------------------- */
 /* Runtime Engine */
@@ -403,20 +357,14 @@ export class DashboardRuntimeEngine {
     const templateResolution =
       resolveDashboardTemplate(request.dashboardKey)
 
-
-
     const context = buildRuntimeContext(
       templateResolution.template,
       request.organizationId,
       request.sessionId
     )
 
-
-
     const cards =
       templateResolution.template.cards.map(resolveDashboardCard)
-
-
 
     const warnings = [
 
@@ -425,8 +373,6 @@ export class DashboardRuntimeEngine {
       ...cards.flatMap((card) => card.warnings)
 
     ]
-
-
 
     return {
 
@@ -447,8 +393,6 @@ export class DashboardRuntimeEngine {
   }
 
 }
-
-
 
 /* -------------------------------------------------- */
 /* Singleton */

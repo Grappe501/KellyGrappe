@@ -2,8 +2,6 @@
 
 \# Long-Term Campaign CRM Architecture Plan
 
-
-
 \*\*Document Status:\*\* Living Document  
 
 \*\*Purpose:\*\* Strategic roadmap for building a scalable Campaign Operations Platform  
@@ -12,27 +10,15 @@
 
 \*\*Last Updated:\*\* (Update as we go)
 
-
-
 ---
-
-
 
 \# Overview
 
-
-
 This document outlines the long-term architecture vision for the Kelly Grappe Campaign App.
-
-
 
 The goal is not just to build forms.
 
-
-
 The goal is to build a \*\*Campaign Operations Platform\*\* that can:
-
-
 
 \- Capture supporter and volunteer activity
 
@@ -46,23 +32,13 @@ The goal is to build a \*\*Campaign Operations Platform\*\* that can:
 
 \- Scale without re-architecture
 
-
-
 This document will evolve as the system grows.
-
-
 
 ---
 
-
-
 \# North Star Vision
 
-
-
 A single mobile-first Campaign Operations Platform that supports:
-
-
 
 \- Public intake (event requests, volunteer signups, yard sign requests, issue reporting)
 
@@ -78,31 +54,17 @@ A single mobile-first Campaign Operations Platform that supports:
 
 \- Campaign analytics
 
-
-
 We start simple.
-
-
 
 We scale intentionally.
 
-
-
 ---
-
-
 
 \# System Architecture (Long-Term)
 
-
-
 \## 1. Frontend: Campaign Ops PWA
 
-
-
 One Progressive Web App with two operational modes:
-
-
 
 \### Public Mode
 
@@ -116,11 +78,7 @@ One Progressive Web App with two operational modes:
 
 \- RSVP forms
 
-
-
 No login required.
-
-
 
 \### Staff / Volunteer Mode (Phase 2+)
 
@@ -134,36 +92,22 @@ No login required.
 
 \- Communication tools
 
-
-
 Requires authentication and role permissions.
-
-
 
 ---
 
-
-
 \## 2. API Layer: Universal Submit + Workflow Engine
-
-
 
 All modules submit to a single endpoint:
 
-
-
 POST /.netlify/functions/api/submit
 
-
-
 Payload:
-
 
 {
 "moduleId": "MODULE_001_EVENT_REQUEST",
 "data": { ... }
 }
-
 
 Backend flow:
 
@@ -422,5 +366,4 @@ A scalable Campaign Operations Platform — not just a form.
 # Change Log
 
 (Record major architectural decisions here as the system evolves.)
-
 

@@ -35,7 +35,7 @@ and lets the campaign model the race immediately.
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.REMOVED_SERVICE_KEY!
 )
 
 const FILE_PATH = path.join(

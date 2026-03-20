@@ -32,7 +32,6 @@ The system is designed as a **Card-Driven Operations Platform**.
 
 Everything in the system should follow this hierarchy:
 
-
 cards
 ↓
 dashboards
@@ -44,7 +43,6 @@ micro-rooms
 organizations
 ↓
 platform
-
 
 Pages should be **thin shells**.
 
@@ -58,7 +56,6 @@ Services should contain **business logic**.
 
 The platform is organized into several architectural layers.
 
-
 UI Layer
 Card System
 Dashboard System
@@ -69,7 +66,6 @@ Integration Layer
 AI Layer
 Theme Layer
 Admin Layer
-
 
 Each layer has a specific responsibility.
 
@@ -85,12 +81,9 @@ Every new capability should become a card.
 
 Cards live in:
 
-
 app/src/cards/
 
-
 Example structure:
-
 
 cards/
 
@@ -105,7 +98,6 @@ ai/
 
 registry.ts
 types.ts
-
 
 Rules:
 
@@ -122,9 +114,7 @@ Dashboards assemble cards into command environments.
 
 Dashboards live in:
 
-
 app/src/dashboards/
-
 
 Rules:
 
@@ -141,12 +131,9 @@ Modules implement full workflows.
 
 Modules live in:
 
-
 app/src/modules/
 
-
 Current modules include:
-
 
 businessCardScan
 contacts
@@ -159,16 +146,13 @@ organizerTree
 teamSignup
 voterImport
 
-
 Modules typically contain:
-
 
 components
 hooks
 services
 types
 utils
-
 
 Rules:
 
@@ -184,12 +168,9 @@ All database access must go through services.
 
 Services live in:
 
-
 app/src/shared/utils/db/services/
 
-
 Examples:
-
 
 contacts.service.ts
 followups.service.ts
@@ -197,7 +178,6 @@ origins.service.ts
 media.service.ts
 relationships.service.ts
 voterMatching.service.ts
-
 
 Rules:
 
@@ -214,13 +194,11 @@ Local storage currently uses IndexedDB.
 
 Database core files:
 
-
 shared/utils/db/
 
 contactsDb.core.ts
 contactsDb.ts
 contactsDb.types.ts
-
 
 Rules:
 
@@ -242,17 +220,13 @@ AI capabilities exist throughout the platform.
 
 AI components live in:
 
-
 app/src/ai/
 
-
 Examples:
-
 
 interactionLogger.ts
 promptRegistry.ts
 modelRouter.ts
-
 
 Rules:
 
@@ -265,7 +239,6 @@ Rules:
 # 9. AI Logging Requirements
 
 Every AI request must log:
-
 
 timestamp
 workspace
@@ -284,7 +257,6 @@ success/error
 prompt
 response
 
-
 These logs support:
 
 - analytics
@@ -300,17 +272,13 @@ The platform supports multiple organizations.
 
 Themes live in:
 
-
 app/src/theme/
 
-
 Example files:
-
 
 ThemeProvider.tsx
 theme.types.ts
 themes/
-
 
 Rules:
 
@@ -320,7 +288,6 @@ Rules:
 
 Example tokens:
 
-
 --color-primary
 --color-secondary
 --color-accent
@@ -328,7 +295,6 @@ Example tokens:
 --color-card
 --font-heading
 --font-body
-
 
 This allows the platform to support:
 
@@ -345,12 +311,9 @@ with the same system.
 
 External integrations live in:
 
-
 app/src/integrations/
 
-
 Examples:
-
 
 twilio
 sendgrid
@@ -358,7 +321,6 @@ goodchange
 social_apis
 calendar
 voter_data
-
 
 Rules:
 
@@ -371,18 +333,14 @@ Rules:
 
 Server-side automation runs in:
 
-
 app/netlify/functions/
 
-
 Example functions:
-
 
 scan-card.ts
 followup-ai.ts
 event-assist.ts
 ai-command.ts
-
 
 Rules:
 
@@ -397,12 +355,9 @@ Role dashboards determine what users see.
 
 Roles live in:
 
-
 app/src/roles/
 
-
 Example roles:
-
 
 candidate
 campaign_manager
@@ -413,7 +368,6 @@ volunteer
 data_director
 communications_director
 admin
-
 
 Rules:
 
@@ -428,12 +382,9 @@ Micro-rooms are focused workspaces.
 
 Micro-rooms live in:
 
-
 app/src/microrooms/
 
-
 Examples:
-
 
 event_room
 precinct_room
@@ -444,7 +395,6 @@ campus_room
 church_room
 petition_room
 candidate_briefing_room
-
 
 Rules:
 
@@ -457,14 +407,12 @@ Rules:
 
 Before adding a feature ask:
 
-
 Is this a card?
 Is this a dashboard?
 Is this a module?
 Is this a service?
 Is this an integration?
 Is this an admin control?
-
 
 Avoid creating:
 
@@ -508,9 +456,7 @@ Rules:
 
 Files should generally stay under:
 
-
 500 lines
-
 
 If larger:
 
@@ -531,10 +477,8 @@ Never expose:
 
 Secrets must exist in:
 
-
 .env
 Netlify environment variables
-
 
 ---
 

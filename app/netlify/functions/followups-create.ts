@@ -5,13 +5,13 @@ import { createClient } from "@supabase/supabase-js";
  * ENV VALIDATION
  */
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const REMOVED_SERVICE_KEY = process.env.REMOVED_SERVICE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.");
+if (!SUPABASE_URL || !REMOVED_SERVICE_KEY) {
+  console.error("Missing SUPABASE_URL or REMOVED_SERVICE_KEY environment variables.");
 }
 
-const supabase = createClient(SUPABASE_URL ?? "", SUPABASE_SERVICE_ROLE_KEY ?? "");
+const supabase = createClient(SUPABASE_URL ?? "", REMOVED_SERVICE_KEY ?? "");
 
 /**
  * UTILITIES
@@ -74,7 +74,7 @@ export const handler = async (event: any) => {
     return jsonResponse(405, { error: "Method not allowed. Use POST." });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !REMOVED_SERVICE_KEY) {
     return jsonResponse(500, {
       error: "Server misconfigured: Supabase environment variables missing.",
     });

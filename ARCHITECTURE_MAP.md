@@ -81,7 +81,6 @@ Cards are the **primary building blocks** of the system.
 
 All dashboards, roles, and micro-rooms are composed from cards.
 
-
 Expected structure:
 
 Expected structure:
@@ -261,7 +260,6 @@ Themes allow the platform to support **multiple organizations**.
 
 Themes allow the platform to support **multiple organizations**.
 
-
 app/src/theme/
 
 Expected files:
@@ -300,7 +298,6 @@ interactionLogger.ts
 modelRouter.ts
 promptRegistry.ts
 
-
 AI can assist with:
 
 - messaging generation
@@ -335,20 +332,16 @@ error
 prompt
 response
 
-
 ---
 
 # 14. Integration Layer
 
 External systems connect here.
 
-
 ---
 app/src/integrations/
 
-
 Planned integrations:
-
 
 twilio
 sendgrid
@@ -357,19 +350,15 @@ social_apis
 calendar
 voter_data
 
-
 ---
 
 # 15. Role System
 
 Role dashboards control user capabilities.
 
-
 app/src/roles/
 
-
 Example roles:
-
 
 candidate
 campaign_manager
@@ -381,7 +370,6 @@ data_director
 communications_director
 admin
 
-
 Each role loads a specific dashboard template.
 
 ---
@@ -390,12 +378,9 @@ Each role loads a specific dashboard template.
 
 Micro-rooms are task-focused workspaces.
 
-
 app/src/microrooms/
 
-
 Examples:
-
 
 event_room
 precinct_room
@@ -407,7 +392,6 @@ church_room
 petition_room
 candidate_briefing_room
 
-
 Each micro-room loads a dashboard configuration.
 
 ---
@@ -418,16 +402,13 @@ Messaging is central to campaign operations.
 
 Core capabilities include:
 
-
 SMS messaging
 email broadcasting
 message templates
 conversation history
 follow-up automation
 
-
 Messaging cards include:
-
 
 MessagingCenterCard
 SMSCard
@@ -435,13 +416,11 @@ EmailCard
 MessageTemplatesCard
 MessageActivityCard
 
-
 ---
 
 # 18. Social Media Command Center
 
 Planned cards:
-
 
 SocialMediaCard
 TikTokCard
@@ -451,7 +430,6 @@ TwitterXCard
 YouTubeCard
 SubstackEditorCard
 
-
 TikTok is prioritized at launch.
 
 ---
@@ -460,18 +438,14 @@ TikTok is prioritized at launch.
 
 Fundraising capabilities include:
 
-
 GrassrootsFundraisingCard
 CallTimeCard
 RecurringDonorCard
 GoodChangeStatusCard
 
-
 Integration planned with:
 
-
 GoodChange
-
 
 ---
 
@@ -479,12 +453,10 @@ GoodChange
 
 Field cards will include:
 
-
 FieldCoverageCard
 VolunteerQueueCard
 CanvassTrackingCard
 EventStaffingCard
-
 
 These cards drive:
 
@@ -498,12 +470,10 @@ These cards drive:
 
 Entry pipelines include:
 
-
 BusinessCardScannerCard
 ContactImportCard
 LiveContactCard
 EventRequestCard
-
 
 These feed the contact database.
 
@@ -515,7 +485,6 @@ The War Room is the **primary command center**.
 
 It typically includes:
 
-
 VoteGoalCard
 ContactsCard
 FollowUpsCard
@@ -525,13 +494,11 @@ CommandSearchCard
 CommandSummaryCard
 MessagingCenterCard
 
-
 ---
 
 # 23. Platform Expansion
 
 Future expansion includes:
-
 
 AI dashboard generation
 role-based dashboards
@@ -540,20 +507,17 @@ custom organization themes
 advanced analytics
 training modules
 
-
 ---
 
 # 24. Security Model
 
 Security layers include:
 
-
 workspace isolation
 role-based access control
 AI audit logging
 admin feature toggles
 secure API endpoints
-
 
 ---
 

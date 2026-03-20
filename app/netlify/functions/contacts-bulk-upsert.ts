@@ -60,7 +60,7 @@ export const handler: Handler = async (event) => {
   }
 
   const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.REMOVED_SERVICE_KEY;
 
   if (!url || !serviceKey) {
     return json(500, { ok: false, error: "Missing Supabase environment variables." });

@@ -2,8 +2,6 @@
 
 \# Campaign Operations Platform – Module Roadmap
 
-
-
 \*\*Document Status:\*\* Living Roadmap  
 
 \*\*Purpose:\*\* Define the next 12 modules in priority order  
@@ -12,19 +10,11 @@
 
 \*\*Last Updated:\*\* (Update as we go)
 
-
-
 ---
-
-
 
 \# Roadmap Philosophy
 
-
-
 Modules are:
-
-
 
 \- Self-contained
 
@@ -36,8 +26,6 @@ Modules are:
 
 \- Compatible with the Universal Submit API
 
-
-
 Each module must:
 
 1\. Have a clear campaign purpose
@@ -48,15 +36,9 @@ Each module must:
 
 4\. Fit within the long-term CRM model
 
-
-
 ---
 
-
-
 \# Phase 1 Modules (Immediate Build – Intake Engine)
-
-
 
 These modules require:
 
@@ -68,11 +50,7 @@ These modules require:
 
 \- Optional Google Calendar integration
 
-
-
 ---
-
-
 
 \## MODULE\_001\_EVENT\_REQUEST
 
@@ -84,8 +62,6 @@ These modules require:
 
 \*\*Status:\*\* In Development  
 
-
-
 Why First:
 
 \- Drives visibility
@@ -94,11 +70,7 @@ Why First:
 
 \- Creates host-to-volunteer pipeline
 
-
-
 ---
-
-
 
 \## MODULE\_002\_VOLUNTEER\_SIGNUP
 
@@ -116,8 +88,6 @@ Why First:
 
 \- Tag by interest (future CRM use)
 
-
-
 Fields:
 
 \- Contact info
@@ -130,17 +100,11 @@ Fields:
 
 \- Notes
 
-
-
 Strategic Value:
 
 Feeds entire campaign infrastructure.
 
-
-
 ---
-
-
 
 \## MODULE\_003\_HOST\_HOUSE\_MEETUP
 
@@ -150,17 +114,11 @@ Feeds entire campaign infrastructure.
 
 \*\*Outputs:\*\* Event request + potential fundraiser pipeline  
 
-
-
 Strategic Value:
 
 Scalable local influence builder.
 
-
-
 ---
-
-
 
 \## MODULE\_004\_YARD\_SIGN\_REQUEST
 
@@ -170,19 +128,13 @@ Scalable local influence builder.
 
 \*\*Outputs:\*\* Address + quantity + routing record  
 
-
-
 Future Expansion:
 
 \- Delivery task assignment
 
 \- Turf-level heatmap
 
-
-
 ---
-
-
 
 \## MODULE\_005\_ISSUE\_REPORT
 
@@ -192,21 +144,13 @@ Future Expansion:
 
 \*\*Outputs:\*\* Categorized issue log  
 
-
-
 Strategic Value:
 
 Policy insight + messaging intelligence.
 
-
-
 ---
 
-
-
 \# Phase 2 Modules (Operational Growth – CRM Core Required)
-
-
 
 These modules benefit from:
 
@@ -216,11 +160,7 @@ These modules benefit from:
 
 \- Role permissions
 
-
-
 ---
-
-
 
 \## MODULE\_006\_EVENT\_CONFIRMATION\_WORKFLOW
 
@@ -230,8 +170,6 @@ These modules benefit from:
 
 \*\*Outputs:\*\* Pipeline movement (Requested → Confirmed)  
 
-
-
 Requires:
 
 \- Auth
@@ -240,11 +178,7 @@ Requires:
 
 \- Status transitions
 
-
-
 ---
-
-
 
 \## MODULE\_007\_VOLUNTEER\_ASSIGNMENT
 
@@ -254,17 +188,11 @@ Requires:
 
 \*\*Outputs:\*\* Task objects + shift records  
 
-
-
 Strategic Value:
 
 Transforms signups into action.
 
-
-
 ---
-
-
 
 \## MODULE\_008\_SHIFT\_CHECKIN
 
@@ -274,17 +202,11 @@ Transforms signups into action.
 
 \*\*Outputs:\*\* Shift log + hours  
 
-
-
 Future:
 
 Volunteer leaderboards and retention analytics.
 
-
-
 ---
-
-
 
 \## MODULE\_009\_TASK\_MANAGER
 
@@ -294,25 +216,15 @@ Volunteer leaderboards and retention analytics.
 
 \*\*Outputs:\*\* Assignable tasks with due dates  
 
-
-
 Strategic Value:
 
 Reduces chaos. Replaces ad-hoc messaging.
 
-
-
 ---
-
-
 
 \# Phase 3 Modules (Field Operations Expansion)
 
-
-
 ---
-
-
 
 \## MODULE\_010\_CANVASS\_LOGGER
 
@@ -321,8 +233,6 @@ Reduces chaos. Replaces ad-hoc messaging.
 \*\*Purpose:\*\* Log door-knocking results  
 
 \*\*Outputs:\*\* Interaction records  
-
-
 
 Fields:
 
@@ -336,17 +246,11 @@ Fields:
 
 \- Yard sign interest
 
-
-
 Future:
 
 Turf maps + performance analytics.
 
-
-
 ---
-
-
 
 \## MODULE\_011\_PHONE\_BANK\_LOGGER
 
@@ -356,17 +260,11 @@ Turf maps + performance analytics.
 
 \*\*Outputs:\*\* Interaction records  
 
-
-
 Strategic Value:
 
 Scales persuasion + turnout.
 
-
-
 ---
-
-
 
 \## MODULE\_012\_TEXT\_OUTREACH\_TRACKER
 
@@ -376,25 +274,15 @@ Scales persuasion + turnout.
 
 \*\*Outputs:\*\* Message metrics + follow-up tasks  
 
-
-
 Future:
 
 Automation rules + segmentation engine.
 
-
-
 ---
-
-
 
 \# Expansion Candidates (Future Modules)
 
-
-
 These are not immediate but align with long-term CRM goals:
-
-
 
 \- Donation Intake Tracker
 
@@ -416,15 +304,9 @@ These are not immediate but align with long-term CRM goals:
 
 \- Election Day Poll Worker Signup
 
-
-
 ---
 
-
-
 \# Priority Summary Table
-
-
 
 | Module ID | Name | Priority | Phase |
 
@@ -454,15 +336,9 @@ These are not immediate but align with long-term CRM goals:
 
 | 012 | Text Outreach Tracker | 12 | Phase 3 |
 
-
-
 ---
 
-
-
 \# Strategic Build Order
-
-
 
 Phase 1 Focus:
 
@@ -472,8 +348,6 @@ Phase 1 Focus:
 
 \- Refine submission patterns
 
-
-
 Phase 2 Focus:
 
 \- Introduce Supabase
@@ -481,8 +355,6 @@ Phase 2 Focus:
 \- Add authentication
 
 \- Convert submissions into CRM objects
-
-
 
 Phase 3 Focus:
 
@@ -492,19 +364,11 @@ Phase 3 Focus:
 
 \- Automation
 
-
-
 ---
-
-
 
 \# Design Rule
 
-
-
 Every new module must:
-
-
 
 1\. Register in moduleRegistry
 
@@ -518,19 +382,11 @@ Every new module must:
 
 6\. Produce measurable outputs
 
-
-
 No exceptions.
-
-
 
 ---
 
-
-
 \# Change Log
-
-
 
 (Track module additions, reordering, or removals here.)
 

@@ -14,7 +14,7 @@ function mustEnv(name: string) {
 
 const supabase = createClient(
   mustEnv("SUPABASE_URL"),
-  mustEnv("SUPABASE_SERVICE_ROLE_KEY")
+  mustEnv("REMOVED_SERVICE_KEY")
 )
 
 // =========================

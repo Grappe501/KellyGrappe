@@ -180,7 +180,6 @@ export async function listLiveFollowUps(): Promise<LiveFollowUp[]> {
 
 }
 
-
 export async function listLiveFollowUpsForContact(contactId: string): Promise<LiveFollowUp[]> {
 
   const db = await openDb();
