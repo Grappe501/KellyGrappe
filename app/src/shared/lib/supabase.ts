@@ -21,7 +21,10 @@ if (import.meta.env.DEV) {
 // VALIDATION
 // ===============================
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("❌ Supabase ENV variables missing")
+  console.error("❌ Supabase ENV variables missing", {
+    VITE_SUPABASE_URL: supabaseUrl,
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
+  })
 
   throw new Error(
     "Missing Supabase environment variables. Check Netlify + .env file."
@@ -39,19 +42,33 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 // ===============================
-// CONTACT HELPERS (MATCH YOUR DB)
+// 🔥 CONNECTION TEST (IMPORTANT)
+// ===============================
+export async function testConnection() {
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .limit(5)
+
+  console.log("🔥 TEST DATA:", data)
+  console.log("🔥 TEST ERROR:", error)
+
+  return { data, error }
+}
+
+// ===============================
+// CONTACT HELPERS (SAFE VERSION)
 // ===============================
 
-// 🔹 Get all contacts
+// ⚠️ IMPORTANT:
+// These column names MUST match EXACTLY what exists in Supabase
+// BUT we will avoid filtering on special-character columns
+
+// 🔹 Get contacts
 export async function fetchContacts() {
   const { data, error } = await supabase
     .from("contacts")
-    .select(`
-      id,
-      "What is your name?",
-      "Email Address",
-      "Contact Phone Number (text & call)"
-    `)
+    .select("*")
     .limit(100)
 
   if (error) {
@@ -59,31 +76,38 @@ export async function fetchContacts() {
     return []
   }
 
-  return data
+  return data || []
 }
 
-// 🔹 Search contacts
-export async function searchContacts(searchTerm) {
+// 🔹 Search contacts (SAFE fallback)
+export async function searchContacts(searchTerm: string) {
   if (!searchTerm) return fetchContacts()
+
+  // ⚠️ DO NOT FILTER ON SPECIAL CHARACTER COLUMN NAMES
+  // Instead, fetch + filter locally (reliable for now)
 
   const { data, error } = await supabase
     .from("contacts")
-    .select(`
-      id,
-      "What is your name?",
-      "Email Address",
-      "Contact Phone Number (text & call)"
-    `)
-    .or(`
-      "What is your name?".ilike.%${searchTerm}%,
-      "Email Address".ilike.%${searchTerm}%
-    `)
-    .limit(50)
+    .select("*")
+    .limit(200)
 
   if (error) {
     console.error("❌ searchContacts error:", error)
     return []
   }
 
-  return data
+  if (!data) return []
+
+  const lower = searchTerm.toLowerCase()
+
+  return data.filter((row: any) => {
+    return (
+      (row["What is your name?"] || "")
+        .toLowerCase()
+        .includes(lower) ||
+      (row["Email Address"] || "")
+        .toLowerCase()
+        .includes(lower)
+    )
+  })
 }
